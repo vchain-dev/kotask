@@ -10,18 +10,18 @@ import kotlin.time.Duration
 class Task<T: Any> @PublishedApi internal constructor(
     private val inputSerializer: KSerializer<T>,
     val name: String,
-    val retry: IRetryPolicy,
+    val retry: IRetryPolicy? = null,
     val handler: TaskHandlerWithContext<T>
 ) {
     private var logger = LoggerFactory.getLogger(this::class.java)
 
     companion object {
         inline fun <reified T : Any> create(
-            name: String, retry: IRetryPolicy = DefaultRetryPolicy(), noinline handler: TaskHandlerWithContext<T>
+            name: String, retry: IRetryPolicy? = null, noinline handler: TaskHandlerWithContext<T>
         ) = Task(serializer(), name, retry, handler)
 
         inline fun <reified T : Any> create(
-            name: String, retry: IRetryPolicy = DefaultRetryPolicy(), noinline handler: TaskHandler<T>
+            name: String, retry: IRetryPolicy? = null, noinline handler: TaskHandler<T>
         ) = create(name, retry, handler.toWithContext())
     }
 
@@ -52,7 +52,7 @@ class Task<T: Any> @PublishedApi internal constructor(
             logger.error("Task $name failed with callId=${params.callId}", e)
             if (getRetryPolicy(manager).shouldRetry(params)) {
                 logger.info("Retry task $name with callId=${params.callId}")
-                manager.enqueueTaskCall(this, inputStr, getRetryPolicy(manager).getRetryCallParams(params))
+                manager.enqueueTaskCall(this, inputStr, getRetryPolicy(manager).getNextRetryCallParams(params))
             } else {
                 logger.error("Task $name failed with callId=${params.callId} and no more retries left")
             }
@@ -61,10 +61,7 @@ class Task<T: Any> @PublishedApi internal constructor(
     }
 
     private fun getRetryPolicy(manager: TaskManager): IRetryPolicy {
-        if (retry is DefaultRetryPolicy) {
-           return manager.defaultRetryPolicy
-        }
-        return retry
+        return retry ?: manager.defaultRetryPolicy
     }
 
 }

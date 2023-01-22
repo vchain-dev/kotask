@@ -67,10 +67,9 @@ class RabbitMQQueue(val queueName: QueueName, val broker: RabbitMQBroker) {
     }
 
     fun submitMessage(message: Message) {
-        val rabbitHeaders = message.headers.map { (k, v) -> "$HEADERS_PREFIX$k" to v }.toMutableList().let {
-            it.add("x-delay" to message.delayMs.toString())
-            it.toMap()
-        }
+        val rabbitHeaders = message.headers
+            .mapKeys { (k, _) -> "$HEADERS_PREFIX$k" }
+            .plus("x-delay" to message.delayMs.toString())
 
         val props = AMQP.BasicProperties.Builder()
             .headers(rabbitHeaders)

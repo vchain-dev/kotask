@@ -1,19 +1,32 @@
+
+import kotlin.math.pow
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.seconds
+
+
+val DEFAULT_RETRY_POlICY = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay =  1.hours)
 
 interface IRetryPolicy {
     fun shouldRetry(params: CallParams): Boolean
     fun getRetryCallParams(params: CallParams): CallParams
 }
 
-data class RetryPolicy (
+class RetryPolicy (
     val delay: Duration,
-    val maxAttempts: Int
+    val maxRetries: Int,
+    val expBackoff: Boolean = false,
+    val maxDelay: Duration = Duration.INFINITE
 ): IRetryPolicy {
-    override fun shouldRetry(params: CallParams) = params.attemptNum <= maxAttempts
-    override fun getRetryCallParams(params: CallParams) = params.copy(
-        delay = delay,
-        attemptNum = params.attemptNum + 1
-    )
+    override fun shouldRetry(params: CallParams) = params.attemptNum <= maxRetries
+    override fun getRetryCallParams(params: CallParams): CallParams {
+        val delay = if (expBackoff) {
+             minOf(delay * 2.0.pow(params.attemptNum - 1), maxDelay)
+        } else {
+            delay
+        }
+        return params.copy(delay = delay, attemptNum = params.attemptNum + 1)
+    }
 }
 
 class NoRetryPolicy: IRetryPolicy {
@@ -36,3 +49,13 @@ class DefaultRetryPolicy: IRetryPolicy {
     override fun getRetryCallParams(params: CallParams) = throw UnsupportedOperationException()
 }
 
+
+abstract class RetryControlException(): Exception()
+
+class ForceRetry(val delay: Duration): RetryControlException() {
+    fun getRetryCallParams(params: CallParams) = params.copy(
+        delay = delay,
+        attemptNum = params.attemptNum + 1
+    )
+}
+class FailNoRetry(): RetryControlException()

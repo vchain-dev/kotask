@@ -1,25 +1,21 @@
 
 import kotlin.math.pow
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.seconds
 
-
-val DEFAULT_RETRY_POlICY = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay =  1.hours)
 
 interface IRetryPolicy {
     fun shouldRetry(params: CallParams): Boolean
-    fun getRetryCallParams(params: CallParams): CallParams
+    fun getNextRetryCallParams(params: CallParams): CallParams
 }
 
-class RetryPolicy (
+open class RetryPolicy (
     val delay: Duration,
     val maxRetries: Int,
     val expBackoff: Boolean = false,
     val maxDelay: Duration = Duration.INFINITE
 ): IRetryPolicy {
     override fun shouldRetry(params: CallParams) = params.attemptNum <= maxRetries
-    override fun getRetryCallParams(params: CallParams): CallParams {
+    override fun getNextRetryCallParams(params:  CallParams): CallParams {
         val delay = if (expBackoff) {
              minOf(delay * 2.0.pow(params.attemptNum - 1), maxDelay)
         } else {
@@ -31,24 +27,14 @@ class RetryPolicy (
 
 class NoRetryPolicy: IRetryPolicy {
     override fun shouldRetry(params: CallParams) = false
-    override fun getRetryCallParams(params: CallParams) = throw UnsupportedOperationException()
+    override fun getNextRetryCallParams(params: CallParams) = throw UnsupportedOperationException()
 }
 
 class ForeverRetryPolicy(
-    val delay: Duration
-): IRetryPolicy {
-    override fun shouldRetry(params: CallParams) = true
-    override fun getRetryCallParams(params: CallParams) = params.copy(
-        delay = delay,
-        attemptNum = params.attemptNum + 1
-    )
-}
-
-class DefaultRetryPolicy: IRetryPolicy {
-    override fun shouldRetry(params: CallParams) = throw UnsupportedOperationException()
-    override fun getRetryCallParams(params: CallParams) = throw UnsupportedOperationException()
-}
-
+    delay: Duration,
+    expBackoff: Boolean = false,
+    maxDelay: Duration = Duration.INFINITE
+): RetryPolicy(delay, Int.MAX_VALUE, expBackoff, maxDelay), IRetryPolicy
 
 abstract class RetryControlException(): Exception()
 

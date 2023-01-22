@@ -25,7 +25,7 @@ class RetryPolicyTest : FunSpec({
             4.hours,
             4.hours,
         ).forEach{ expectedDelay ->
-            params = policy.getRetryCallParams(params).let{
+            params = policy.getNextRetryCallParams(params).let{
                 it.delay shouldBe expectedDelay
                 it.attemptNum shouldBe params.attemptNum + 1
                 it

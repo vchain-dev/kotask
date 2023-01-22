@@ -1,5 +1,6 @@
 
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.core.spec.style.funSpec
 import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.shouldBe
@@ -9,8 +10,14 @@ import kotlin.time.Duration
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
-class TaskManagerTest : FunSpec({
-    val taskManager = autoClose(TaskManager(RabbitMQBroker()))
+
+class TaskManagerTest: FunSpec({
+    include("Rabbit Broker", taskManagerTest(RabbitMQBroker()))
+    include("Local Broker", taskManagerTest(LocalBroker()))
+})
+fun taskManagerTest(broker: IMessageBroker) = funSpec{
+
+    val taskManager = TaskManager(broker)
 
     val testTask = Task.create("testing-task", ) { ctx, input: TestingTaskInput ->
         input.markExecuted(ctx)
@@ -27,8 +34,17 @@ class TaskManagerTest : FunSpec({
         input.markExecuted(ctx)
         throw Exception("test exception")
     }
+    beforeTest {
+        TaskManager.setDefaultInstance(taskManager)
+        if (broker !is LocalBroker) {
+            taskManager.startWorkers(testTask, testTask2, testFailingTask)
+        }
+    }
 
-    taskManager.startWorkers(testTask, testTask2, testFailingTask)
+    afterSpec {
+        taskManager.close()
+    }
+
 
     test("test basic queues, execution, delays") {
 
@@ -62,7 +78,6 @@ class TaskManagerTest : FunSpec({
                 it.delay shouldBe Duration.ZERO
                 it.callId
             }
-            println(callId)
             eventually(1500) {
                 it.executionsCount() shouldBe 2
             }
@@ -84,7 +99,7 @@ class TaskManagerTest : FunSpec({
             }
         }
     }
-})
+}
 
 @Serializable
 data class TestingTaskInput(val callId: String) {

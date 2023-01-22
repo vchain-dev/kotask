@@ -1,5 +1,6 @@
 
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
@@ -8,27 +9,40 @@ import kotlin.time.toDuration
 class TaskManager(
     private val broker: IMessageBroker,
     private val queueNamePrefix: String = "kotask-",
-    val defaultRetryPolicy: IRetryPolicy = DEFAULT_RETRY_POlICY,
+    val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay =  1.hours),
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
+    private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
     private var logger = LoggerFactory.getLogger(this::class.java)
 
     fun enqueueTaskCall(task: Task<*>, inputStr: String, params: CallParams) {
         logger.debug("Enqueue task ${task.name} with input $inputStr")
         checkTaskUniq(task)
         broker.submitMessage(queueName(task), paramsToMessage(inputStr, params))
-    }
 
-    fun startWorker(task: Task<*>) {
-        logger.info("Starting worker for task ${task.name}")
-        checkTaskUniq(task)
-        broker.startConsumer(queueName(task)) { message: Message, ack: () -> Any ->
-            task.execute(message.body.decodeToString(), messageToParams(message), this)
-            ack()
+        if (broker is LocalBroker && !tasksConsumers.containsKey(task.name)) {
+            // Start worker for local broker
+            startWorker(task)
         }
     }
 
+    private fun startWorker(task: Task<*>) {
+        logger.info("Starting worker for task ${task.name}")
+        checkTaskUniq(task)
+        tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
+            broker.startConsumer(queueName(task)) { message: Message, ack: () -> Any ->
+                task.execute(message.body.decodeToString(), messageToParams(message), this)
+                ack()
+            }
+        )
+
+    }
+
     fun startWorkers(vararg tasks: Task<*>) {
+        if (broker is LocalBroker) {
+            logger.warn("LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers")
+            return
+        }
         tasks.forEach { startWorker(it) }
     }
 

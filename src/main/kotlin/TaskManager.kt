@@ -8,7 +8,7 @@ import kotlin.time.toDuration
 class TaskManager(
     private val broker: IMessageBroker,
     private val queueNamePrefix: String = "kotask-",
-    val defaultRetryPolicy: IRetryPolicy = RetryPolicy(30.seconds, 3),
+    val defaultRetryPolicy: IRetryPolicy = DEFAULT_RETRY_POlICY,
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     private var logger = LoggerFactory.getLogger(this::class.java)

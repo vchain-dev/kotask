@@ -43,6 +43,11 @@ class Task<T: Any> @PublishedApi internal constructor(
         logger.info("Start task $name with callId=${params.callId}")
         try {
             handler(ctx, input)
+        } catch (e: ForceRetry) {
+            logger.info("Received ForceRetry from task $name with callId=${params.callId}")
+            manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
+        } catch (e: FailNoRetry) {
+            logger.info("Received NoRetry from task $name with callId=${params.callId}")
         } catch (e: Exception) {
             logger.error("Task $name failed with callId=${params.callId}", e)
             if (getRetryPolicy(manager).shouldRetry(params)) {

@@ -1,3 +1,5 @@
+package com.zamna.kotask
+
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay

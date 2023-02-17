@@ -1,12 +1,14 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+
 plugins {
     kotlin("jvm") version "1.7.20"
     kotlin("plugin.serialization") version "1.7.20"
+    `maven-publish`
 }
 
 group = "com.zamna"
-version = "0.1"
+version = "0.5"
 
 repositories {
     mavenCentral()
@@ -36,4 +38,15 @@ tasks.test {
 
 tasks.withType<KotlinCompile> {
     kotlinOptions.jvmTarget = "1.8"
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("kotask") {
+            groupId = "com.zamna"
+            artifactId = "kotask"
+            version = "0.5"
+            from(components["java"])
+        }
+    }
 }

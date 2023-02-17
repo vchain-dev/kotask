@@ -1,10 +1,6 @@
 package example
 
-import CallParams
-import RabbitMQBroker
-import RetryPolicy
-import Task
-import TaskManager
+import com.zamna.kotask.*
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.seconds
 

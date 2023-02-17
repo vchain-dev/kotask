@@ -1,4 +1,6 @@
 
+import com.zamna.kotask.CallParams
+import com.zamna.kotask.RetryPolicy
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.time.Duration.Companion.hours
@@ -6,7 +8,6 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 class RetryPolicyTest : FunSpec({
-
     test("getRetryCallParams exp") {
         val policy = RetryPolicy(15.seconds, 20, expBackoff = true, maxDelay = 4.hours)
         var params = CallParams()
@@ -33,3 +34,4 @@ class RetryPolicyTest : FunSpec({
         }
     }
 })
+

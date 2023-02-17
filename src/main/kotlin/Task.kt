@@ -1,5 +1,7 @@
+package com.zamna.kotask
 
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
@@ -29,20 +31,30 @@ class Task<T: Any> @PublishedApi internal constructor(
         val inputStr = Json.encodeToString(inputSerializer, input)
         logger.debug("Call task $name later with input $inputStr")
         manager.enqueueTaskCall(this, inputStr, params)
-
     }
 
-    fun execute(inputStr: String, params: CallParams, manager: TaskManager) {
+    fun createTaskCall(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()): TaskCall {
+        val inputStr = Json.encodeToString(inputSerializer, input)
+        logger.debug("Make task call for $name with input $inputStr")
+        return manager.createTaskCall(this, inputStr, params)
+    }
+
+    suspend fun execute(inputStr: String, params: CallParams, manager: TaskManager) {
         logger.debug("Execute task $name with input $inputStr")
         // TODO: what to do with deserialization errors?
         var  input  = Json.decodeFromString(inputSerializer, inputStr)
-        val ctx = ExecutionContext(params, manager, logCtx = mapOf(
-            "task" to name,
-            "callId" to params.callId,
-        ))
+        val ctx = ExecutionContext(
+            params, manager, logCtx = mapOf(
+                "task" to name,
+                "callId" to params.callId,
+            )
+        )
         logger.info("Start task $name with callId=${params.callId}")
         try {
             handler(ctx, input)
+        } catch (e: RepeatTask) {
+            logger.info("Received RepeatTask from task $name with callId=${params.callId}")
+            manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
         } catch (e: ForceRetry) {
             logger.info("Received ForceRetry from task $name with callId=${params.callId}")
             manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
@@ -63,14 +75,24 @@ class Task<T: Any> @PublishedApi internal constructor(
     private fun getRetryPolicy(manager: TaskManager): IRetryPolicy {
         return retry ?: manager.defaultRetryPolicy
     }
+}
+
+@Serializable
+data class TaskCall(
+    val taskName: String,
+    val message: Message,
+) {
+    fun callLater(manager: TaskManager = TaskManager.getDefaultInstance()) {
+        manager.enqueueTaskCall(this)
+    }
 
 }
 
-typealias TaskHandlerWithContext<T> =  (ctx: ExecutionContext, input: T) -> Unit
-typealias TaskHandler<T> = (input: T) -> Unit
+typealias TaskHandlerWithContext<T> = (suspend (ctx: ExecutionContext, input: T) -> Unit)
+typealias TaskHandler<T> = (suspend (input: T) -> Unit)
 
-fun <T>TaskHandler<T>.toWithContext(): TaskHandlerWithContext<T> {
-    return fun (_: ExecutionContext, input: T) {
+fun <T> TaskHandler<T>.toWithContext(): TaskHandlerWithContext<T> {
+    return { _: ExecutionContext, input: T ->
         this(input)
     }
 }

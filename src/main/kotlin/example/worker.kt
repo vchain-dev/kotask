@@ -1,7 +1,7 @@
 package example
 
-import RabbitMQBroker
-import TaskManager
+import com.zamna.kotask.RabbitMQBroker
+import com.zamna.kotask.TaskManager
 
 fun main() {
     val manager = TaskManager(RabbitMQBroker())

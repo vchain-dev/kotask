@@ -1,3 +1,4 @@
+package com.zamna.kotask
 
 import kotlin.math.pow
 import kotlin.time.Duration
@@ -15,7 +16,7 @@ open class RetryPolicy (
     val maxDelay: Duration = Duration.INFINITE
 ): IRetryPolicy {
     override fun shouldRetry(params: CallParams) = params.attemptNum <= maxRetries
-    override fun getNextRetryCallParams(params:  CallParams): CallParams {
+    override fun getNextRetryCallParams(params: CallParams): CallParams {
         val delay = if (expBackoff) {
              minOf(delay * 2.0.pow(params.attemptNum - 1), maxDelay)
         } else {
@@ -42,6 +43,13 @@ class ForceRetry(val delay: Duration): RetryControlException() {
     fun getRetryCallParams(params: CallParams) = params.copy(
         delay = delay,
         attemptNum = params.attemptNum + 1
+    )
+}
+
+class RepeatTask(val delay: Duration): RetryControlException() {
+    fun getRetryCallParams(params: CallParams) = params.copy(
+        delay = delay,
+        attemptNum = 0
     )
 }
 class FailNoRetry(): RetryControlException()

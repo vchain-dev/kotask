@@ -28,6 +28,8 @@ jobs:
       with:
         java-version: '18'
         distribution: 'corretto'
+    - name: Trigger action
+      run: echo "HAHA"
     - name: Start containers for tests
       run: docker compose -f ./docker-compose.yaml up --force-recreate
     - name: Build with Gradle

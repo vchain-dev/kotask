@@ -9,7 +9,7 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches: [ "main", "gradle-action" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
@@ -28,7 +28,15 @@ jobs:
       with:
         java-version: '18'
         distribution: 'corretto'
+    - name: Start containers for tests
+      run: docker compose -f ./docker-compose.yaml up --force-recreate
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2.4.0
       with:
         arguments: build
+    - name: Publish package
+      uses: gradle/gradle-build-action@v2.4.0
+      with:
+        arguments: publish
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

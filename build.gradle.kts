@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.net.URI
 
 
 plugins {
@@ -30,7 +31,6 @@ dependencies {
     testImplementation("io.kotest:kotest-runner-junit5:${kotestVersion}")
     testImplementation("io.kotest:kotest-assertions-core:${kotestVersion}")
     testImplementation("io.kotest:kotest-assertions-json:${kotestVersion}")
-    testImplementation("io.kotest.extensions:kotest-extensions-testcontainers:1.3.4")
 }
 
 tasks.test {
@@ -42,6 +42,18 @@ tasks.withType<KotlinCompile> {
 }
 
 publishing {
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = URI.create("https://maven.pkg.github.com/vchain-dev/kotask")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+
     publications {
         create<MavenPublication>("kotask") {
             groupId = "com.zamna"

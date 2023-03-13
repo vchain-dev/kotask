@@ -1,8 +1,10 @@
-
 import com.zamna.kotask.*
 import io.kotest.common.ExperimentalKotest
+import io.kotest.core.extensions.install
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
+import io.kotest.extensions.testcontainers.LifecycleMode
+import io.kotest.extensions.testcontainers.TestContainerExtension
 import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.shouldBe
@@ -14,6 +16,17 @@ import kotlin.time.toDuration
 
 
 class TaskManagerTest: FunSpec({
+    val container = install(
+        TestContainerExtension("heidiks/rabbitmq-delayed-message-exchange:latest", LifecycleMode.Root),
+    ) {
+        startupAttempts = 1
+        withExposedPorts(5672, 15672)
+        withEnv(mapOf(
+            "RABBITMQ_DEFAULT_USER" to "guest",
+            "RABBITMQ_DEFAULT_PASS" to "guest"
+        ))
+    }
+
     include("Rabbit Broker", taskManagerTest(RabbitMQBroker()))
     include("Local Broker", taskManagerTest(LocalBroker()))
 })

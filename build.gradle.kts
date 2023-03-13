@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import java.net.URI
 
 
 plugins {
@@ -9,6 +10,8 @@ plugins {
 
 group = "com.zamna"
 version = "0.5"
+
+val kotestVersion = "5.5.4"
 
 repositories {
     mavenCentral()
@@ -24,12 +27,10 @@ dependencies {
 
     implementation("com.rabbitmq:amqp-client:5.16.0")
 
-
     // add rabbit mq
-
-    testImplementation("io.kotest:kotest-runner-junit5:5.5.4")
-    testImplementation("io.kotest:kotest-assertions-core:5.5.4")
-    testImplementation("io.kotest:kotest-assertions-json:5.5.4")
+    testImplementation("io.kotest:kotest-runner-junit5:${kotestVersion}")
+    testImplementation("io.kotest:kotest-assertions-core:${kotestVersion}")
+    testImplementation("io.kotest:kotest-assertions-json:${kotestVersion}")
 }
 
 tasks.test {
@@ -41,6 +42,18 @@ tasks.withType<KotlinCompile> {
 }
 
 publishing {
+
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = URI.create("https://maven.pkg.github.com/vchain-dev/kotask")
+            credentials {
+                username = System.getenv("GITHUB_ACTOR")
+                password = System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+
     publications {
         create<MavenPublication>("kotask") {
             groupId = "com.zamna"

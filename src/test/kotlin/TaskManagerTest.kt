@@ -1,4 +1,6 @@
 
+import com.zamna.kotask.*
+import io.kotest.common.ExperimentalKotest
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
 import io.kotest.framework.concurrency.continually
@@ -15,6 +17,7 @@ class TaskManagerTest: FunSpec({
     include("Rabbit Broker", taskManagerTest(RabbitMQBroker()))
     include("Local Broker", taskManagerTest(LocalBroker()))
 })
+@OptIn(ExperimentalKotest::class)
 fun taskManagerTest(broker: IMessageBroker) = funSpec{
 
     val taskManager = TaskManager(broker)
@@ -96,6 +99,19 @@ fun taskManagerTest(broker: IMessageBroker) = funSpec{
             }
             eventually(1500) {
                 it.executionsCount() shouldBe 3
+            }
+        }
+    }
+
+    test("TaskCall") {
+        TestingTaskInput.new().let {
+            val call = testFailingTask.createTaskCall(it)
+            continually(500) {
+                it.isExecuted() shouldBe false
+            }
+            call.callLater()
+            eventually(1000) {
+                it.isExecuted() shouldBe true
             }
         }
     }

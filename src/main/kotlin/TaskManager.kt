@@ -1,4 +1,6 @@
+package com.zamna.kotask
 
+import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -9,28 +11,39 @@ import kotlin.time.toDuration
 class TaskManager(
     private val broker: IMessageBroker,
     private val queueNamePrefix: String = "kotask-",
-    val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay =  1.hours),
+    val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
     private var logger = LoggerFactory.getLogger(this::class.java)
 
     fun enqueueTaskCall(task: Task<*>, inputStr: String, params: CallParams) {
-        logger.debug("Enqueue task ${task.name} with input $inputStr")
+        logger.debug("Enqueue task ${task.name}")
         checkTaskUniq(task)
-        broker.submitMessage(queueName(task), paramsToMessage(inputStr, params))
+        val call = createTaskCall(task, inputStr, params)
+        enqueueTaskCall(call)
+    }
 
-        if (broker is LocalBroker && !tasksConsumers.containsKey(task.name)) {
+    fun enqueueTaskCall(call: TaskCall) {
+        logger.debug("Enqueue task call for ${call.taskName}")
+        broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
+
+        if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
             // Start worker for local broker
-            startWorker(task)
+            startWorker(knownTasks[call.taskName]!!)
         }
+    }
+
+    fun createTaskCall(task: Task<*>, inputStr: String, params: CallParams): TaskCall {
+        checkTaskUniq(task)
+        return TaskCall(task.name, paramsToMessage(inputStr, params))
     }
 
     private fun startWorker(task: Task<*>) {
         logger.info("Starting worker for task ${task.name}")
         checkTaskUniq(task)
         tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
-            broker.startConsumer(queueName(task)) { message: Message, ack: () -> Any ->
+            broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
                 task.execute(message.body.decodeToString(), messageToParams(message), this)
                 ack()
             }
@@ -91,7 +104,7 @@ class TaskManager(
         )
     }
 
-    private fun queueName(task: Task<*>): QueueName = "${queueNamePrefix}${task.name}"
+    private fun queueNameByTaskName(taskName: String): QueueName = "${queueNamePrefix}${taskName}"
 
 }
 
@@ -102,15 +115,36 @@ interface IMessageBroker: AutoCloseable {
     fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer
 }
 
+@Serializable
 data class Message(
     val body: ByteArray,
     val headers: Map<String, String>,
     val delayMs: Long,
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as Message
+
+        if (!body.contentEquals(other.body)) return false
+        if (headers != other.headers) return false
+        if (delayMs != other.delayMs) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = body.contentHashCode()
+        result = 31 * result + headers.hashCode()
+        result = 31 * result + delayMs.hashCode()
+        return result
+    }
+}
 
 interface IConsumer {
     fun stop()
 }
 
-typealias ConsumerHandler = (message: Message, ack: ()->Any) -> Unit
+typealias ConsumerHandler = suspend (message: Message, ack: ()->Any) -> Unit
 

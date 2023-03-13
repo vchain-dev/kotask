@@ -1,7 +1,10 @@
+package com.zamna.kotask
+
 import com.rabbitmq.client.*
+import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
-class RabbitMQBroker(uri: String = "amqp://guest:guest@localhost"): IMessageBroker {
+class RabbitMQBroker(uri: String = "amqp://guest:guest@localhost", ): IMessageBroker {
     private val queues = mutableMapOf<String, RabbitMQQueue>()
     var connection: Connection
     var channel: Channel
@@ -98,8 +101,10 @@ class RabbitMQQueue(val queueName: QueueName, val broker: RabbitMQBroker) {
                     delayMs = props.headers["x-delay"]?.toString()?.toLong() ?: 0,
                 )
 
-                handler(msg) {
-                    cChannel.basicAck(envelope.deliveryTag, false)
+                runBlocking {
+                    handler(msg) {
+                        cChannel.basicAck(envelope.deliveryTag, false)
+                    }
                 }
             }
 

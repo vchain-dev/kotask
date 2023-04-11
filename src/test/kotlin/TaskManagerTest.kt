@@ -59,11 +59,11 @@ fun taskManagerTest(broker: IMessageBroker) = funSpec{
         }
 
         TestingTaskInput2.new().let {
-            testTask2.callLater(it, CallParams(delay = 3.toDuration(DurationUnit.SECONDS)))
-            continually(2500) {
+            testTask2.callLater(it, CallParams(delay = 2.toDuration(DurationUnit.SECONDS)))
+            continually(1500) {
                 it.isExecuted() shouldBe false
             }
-            eventually(1500) {
+            eventually(1000) {
                 it.isExecuted() shouldBe true
             }
 

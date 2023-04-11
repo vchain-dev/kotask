@@ -2,7 +2,7 @@ version: '3.3'
 
 services:
   rabbit:
-    image: heidiks/rabbitmq-delayed-message-exchange:latest
+    image: rabbitmq:management
     environment:
       - RABBITMQ_DEFAULT_USER=guest
       - RABBITMQ_DEFAULT_PASS=guest

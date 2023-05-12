@@ -1,88 +1,69 @@
 package com.zamna.kotask
 
+import ExpDelayQuantizer
+import IDelayQuantizer
 import com.rabbitmq.client.*
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
-class RabbitMQBroker(uri: String = "amqp://guest:guest@localhost", ): IMessageBroker {
-    private val queues = mutableMapOf<String, RabbitMQQueue>()
+const val HEADERS_PREFIX = "kot-"
+
+class RabbitMQBroker(
+    uri: String = "amqp://guest:guest@localhost",
+    val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer()
+) : IMessageBroker {
+    private val createdQueues = mutableSetOf<QueueName>()
+    private val createdDelayQueues = mutableSetOf<Long>()
     var connection: Connection
     var channel: Channel
-    val exchangeName = "task-delayed-exchange"
+
+    val delayExchangeName = "kotask-delayed-exchange"
+    val delayQueueNamePrefix = "kotask-delayed-"
+    val delayHeaderName = "delay"
+    val delayQuantizedHeaderName = "delay-quantized"
 
     private var logger = LoggerFactory.getLogger(this::class.java)
 
     init {
         val factory = ConnectionFactory()
-
-        if (false && logger.isDebugEnabled) {
-            factory.setTrafficListener(object : TrafficListener {
-                override fun write(outboundCommand: Command?) {
-                    logger.debug("RabbitMQ write: $outboundCommand")
-
-                }
-
-                override fun read(inboundCommand: Command?) {
-                    logger.debug("RabbitMQ read: $inboundCommand")
-                }
-            })
-        }
-
         factory.setUri(uri)
         connection = factory.newConnection()
         channel = connection.createChannel()
-        channel.exchangeDeclare(
-            exchangeName,
-            "x-delayed-message",
-            true,
-            false,
-            mapOf("x-delayed-type" to "direct")
-        )
 
+        // Create DELAYED exchange
+        channel.exchangeDeclare(delayExchangeName, "headers", true)
     }
 
-    private fun getQueueById(queueName: QueueName): RabbitMQQueue {
-        return queues.getOrPut(queueName) { RabbitMQQueue(queueName, this) }
+    private fun assertQueue(queueName: QueueName)  {
+        if (queueName !in createdQueues) {
+            logger.debug("Declare queue $queueName")
+            channel.queueDeclare(queueName, true, false, false, null)
+            createdQueues.add(queueName)
+        }
+        
     }
-
+    
     override fun submitMessage(queueName: QueueName, message: Message) {
-        getQueueById(queueName).submitMessage(message)
-    }
-
-    override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
-        return getQueueById(queueName).startConsumer(handler)
-    }
-
-    override fun close() {
-        connection.close()
-    }
-}
-const val HEADERS_PREFIX = "kot-"
-
-
-class RabbitMQQueue(val queueName: QueueName, val broker: RabbitMQBroker) {
-    private val pubChannel: Channel
-    init {
-        //pubChannel = broker.connection.createChannel()
-        pubChannel = broker.channel
-        pubChannel.queueDeclare(queueName, true, false, false, null)
-        pubChannel.queueBind(queueName, broker.exchangeName, queueName)
-    }
-
-    fun submitMessage(message: Message) {
+        assertQueue(queueName)
+        
+        val quantizedDelayMs = quantizeDelayAndAssertDelayedQueue(message.delayMs)
         val rabbitHeaders = message.headers
             .mapKeys { (k, _) -> "$HEADERS_PREFIX$k" }
-            .plus("x-delay" to message.delayMs.toString())
+            .plus(delayHeaderName to message.delayMs.toString())
+            .plus(delayQuantizedHeaderName to quantizedDelayMs.toString())
 
         val props = AMQP.BasicProperties.Builder()
             .headers(rabbitHeaders)
             .build()
 
-        pubChannel.basicPublish(broker.exchangeName, queueName, props, message.body)
+        val exchangeName = if (quantizedDelayMs > 0) delayExchangeName else ""
+        channel.basicPublish(exchangeName, queueName, props, message.body)
     }
 
-    fun startConsumer(handler: ConsumerHandler): RabbitMQConsumer {
-        val cChannel = broker.connection.createChannel()
+    override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
+        assertQueue(queueName)
+
+        val cChannel = connection.createChannel()
         val c = object : DefaultConsumer(cChannel) {
             override fun handleDelivery(
                 consumerTag: String,
@@ -98,7 +79,7 @@ class RabbitMQQueue(val queueName: QueueName, val broker: RabbitMQBroker) {
                 val msg = Message(
                     body = body,
                     headers = headers,
-                    delayMs = props.headers["x-delay"]?.toString()?.toLong() ?: 0,
+                    delayMs = props.headers[delayHeaderName]?.toString()?.toLong() ?: 0,
                 )
 
                 runBlocking {
@@ -107,15 +88,37 @@ class RabbitMQQueue(val queueName: QueueName, val broker: RabbitMQBroker) {
                     }
                 }
             }
-
         }
 
         cChannel.basicConsume(queueName, false, c)
         return RabbitMQConsumer(c)
     }
+
+    override fun close() {
+        connection.close()
+    }
+
+    fun quantizeDelayAndAssertDelayedQueue(delayMs: Long): Long {
+        val delayQuantized = delayQuantizer.quantize(delayMs)
+
+        if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
+            logger.debug("Create delayed queue for $delayQuantized ms")
+            val queueName = "$delayQueueNamePrefix$delayQuantized"
+            channel.queueDeclare(
+                queueName, true, false, false,
+                mapOf("x-message-ttl" to delayQuantized, "x-dead-letter-exchange" to "")
+            )
+            channel.queueBind(
+                queueName, delayExchangeName, queueName,
+                mapOf(delayQuantizedHeaderName to delayQuantized.toString(), "x-match" to "all")
+            )
+            createdDelayQueues.add(delayQuantized)
+        }
+        return delayQuantized
+    }
 }
 
-class RabbitMQConsumer(val consumer: DefaultConsumer): IConsumer {
+class RabbitMQConsumer(val consumer: DefaultConsumer) : IConsumer {
     override fun stop() {
         consumer.channel.basicCancel(consumer.consumerTag)
     }

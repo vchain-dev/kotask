@@ -13,7 +13,6 @@ val retryOnceTask = Task.create("retry-once-task", RetryPolicy(30.seconds, 1)) {
     throw Exception("I'm $input")
 }
 
-
 class SomeService(private val dependency: String) {
     val serviceTask = Task.create("some-service-task") { input: TaskInput ->
         println("Task with dependency: $dependency")

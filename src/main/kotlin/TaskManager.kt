@@ -1,7 +1,12 @@
 package com.zamna.kotask
 
+import Settings
+import kotlinx.coroutines.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -10,8 +15,10 @@ import kotlin.time.toDuration
 
 class TaskManager(
     private val broker: IMessageBroker,
+    private val scheduler: IScheduleTracker = InMemoryScheduleTracker(),
     private val queueNamePrefix: String = "kotask-",
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
+    val schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
@@ -48,7 +55,35 @@ class TaskManager(
                 ack()
             }
         )
+    }
 
+    fun <T: Any> startScheduler(
+        workloadName: String, schedulePolicy: ISchedulePolicy, taskCallFactory: TaskCallFactory<T>
+    ) {
+        schedulersScope.launch {
+            while (true) {
+                logger.debug("Receiving schedule.")
+                schedulePolicy
+                    .getNextCalls()
+                    .forEach { date -> submitScheduleMessage(workloadName, date, taskCallFactory) }
+                delay(Settings.scheduleDelayDuration)
+            }
+        }
+    }
+
+    private fun <T: Any> submitScheduleMessage(workloadName: String, scheduleAt: Instant, taskCallFactory: TaskCallFactory<T>) {
+        if (!scheduler.recordScheduling(workloadName, scheduleAt)) {
+            logger.trace("Scheduling $workloadName for $scheduleAt stopped. Record already exists.")
+            return
+        }
+        val call = taskCallFactory(CallParams(delay = maxOf(
+            scheduleAt - Clock.System.now(),
+            Duration.ZERO
+        )))
+        broker.submitMessage(
+            queueNameByTaskName(taskName = call.taskName),
+            call.message
+        )
     }
 
     fun startWorkers(vararg tasks: Task<*>) {
@@ -61,6 +96,7 @@ class TaskManager(
 
     override fun close() {
         broker.close()
+        schedulersScope.cancel()
     }
 
     init {
@@ -147,4 +183,3 @@ interface IConsumer {
 }
 
 typealias ConsumerHandler = suspend (message: Message, ack: ()->Any) -> Unit
-

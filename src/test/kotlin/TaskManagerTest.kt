@@ -1,64 +1,82 @@
-
 import com.zamna.kotask.*
 import io.kotest.common.ExperimentalKotest
+import io.kotest.core.extensions.install
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
+import io.kotest.extensions.testcontainers.TestContainerExtension
 import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.shouldBe
-import kotlinx.serialization.Serializable
+import org.testcontainers.containers.wait.strategy.Wait
 import java.util.*
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
 
-class TaskManagerTest: FunSpec({
-    include("Rabbit Broker", taskManagerTest(RabbitMQBroker()))
-    include("Local Broker", taskManagerTest(LocalBroker()))
+class TaskManagerWithLocalBrokerTest: FunSpec({
+    include("Local Broker", taskManagerTest(TaskManager(LocalBroker())))
 })
+
+class TaskManagerWithRabbitTest: FunSpec({
+    val rabbitUser = "guest"
+    val rabbitPass = "guest"
+    val rabbit = install(TestContainerExtension("rabbitmq:management")) {
+        startupAttempts = 1
+        withExposedPorts(5672)
+        withEnv("RABBITMQ_DEFAULT_USER", rabbitUser)
+        withEnv("RABBITMQ_DEFAULT_PASS", rabbitPass)
+        waitingFor(Wait.forLogMessage(".*Server startup complete;.*\\n", 1));
+    }
+
+    val rabbitUri = "amqp://${rabbitUser}:${rabbitPass}@${rabbit.host}:${rabbit.firstMappedPort}"
+    val taskManager = TaskManager(RabbitMQBroker(uri = rabbitUri))
+
+    afterSpec {
+        taskManager.close()
+    }
+
+    include("Rabbit Broker", taskManagerTest(taskManager))
+})
+
 @OptIn(ExperimentalKotest::class)
-fun taskManagerTest(broker: IMessageBroker) = funSpec{
-
-    val taskManager = TaskManager(broker)
-
-    val testTask = Task.create("testing-task", ) { ctx, input: TestingTaskInput ->
+fun taskManagerTest(taskManager: TaskManager) = funSpec {
+    // Tasks to test
+    val testTask1 = Task.create("testing-task1", ) { ctx, input: TaskTrackExecutionWithContextCountInput ->
         input.markExecuted(ctx)
     }
 
-    val testTask2 = Task.create("testing-task2", ) { input: TestingTaskInput2 ->
+    val testTask2 = Task.create("testing-task2", ) { input: TaskTrackExecutionInput ->
         input.markExecuted()
     }
 
     val testFailingTask = Task.create(
         "testing-failing-task",
         RetryPolicy(1.toDuration(DurationUnit.SECONDS), 3)
-    ) { ctx, input: TestingTaskInput ->
+    ) { ctx, input: TaskTrackExecutionWithContextCountInput ->
         input.markExecuted(ctx)
         throw Exception("test exception")
     }
+
+    // Spec lifecycle
+
     beforeTest {
         TaskManager.setDefaultInstance(taskManager)
-        if (broker !is LocalBroker) {
-            taskManager.startWorkers(testTask, testTask2, testFailingTask)
-        }
+        taskManager.startWorkers(testTask1, testTask2, testFailingTask)
     }
 
-    afterSpec {
-        taskManager.close()
-    }
-
+    // Tests
 
     test("test basic queues, execution, delays") {
 
-        TestingTaskInput.new().let {
-            testTask.callLater(it)
+        TaskTrackExecutionWithContextCountInput.new().let {
+            testTask1.callLater(it)
             eventually(1000) {
                 it.isExecuted() shouldBe true
             }
         }
 
-        TestingTaskInput2.new().let {
+        TaskTrackExecutionInput.new().let {
             testTask2.callLater(it, CallParams(delay = 2.toDuration(DurationUnit.SECONDS)))
             continually(1500) {
                 it.isExecuted() shouldBe false
@@ -70,8 +88,8 @@ fun taskManagerTest(broker: IMessageBroker) = funSpec{
         }
     }
 
-    test("retries") {
-        TestingTaskInput.new().let {
+    test("task with retries increment attempts and delay stays 1 on failure") {
+        TaskTrackExecutionWithContextCountInput.new().let {
             testFailingTask.callLater(it)
             eventually(500) {
                 it.executionsCount() shouldBe 1
@@ -103,8 +121,8 @@ fun taskManagerTest(broker: IMessageBroker) = funSpec{
         }
     }
 
-    test("TaskCall") {
-        TestingTaskInput.new().let {
+    test("TaskCall isExecuted updates after call") {
+        TaskTrackExecutionWithContextCountInput.new().let {
             val call = testFailingTask.createTaskCall(it)
             continually(500) {
                 it.isExecuted() shouldBe false
@@ -115,38 +133,4 @@ fun taskManagerTest(broker: IMessageBroker) = funSpec{
             }
         }
     }
-}
-
-@Serializable
-data class TestingTaskInput(val callId: String) {
-    companion object {
-        fun new(): TestingTaskInput  {
-            return TestingTaskInput(UUID.randomUUID().toString())
-        }
-        val executed: MutableMap<String, MutableList<ExecutionContext>> = mutableMapOf()
-    }
-
-    fun markExecuted(ctx: ExecutionContext) {
-        executed.getOrPut(callId) { mutableListOf() }.add(ctx)
-    }
-
-    fun isExecuted() = executed.containsKey(callId)
-    fun executionsCount() = executed[callId]?.size ?: 0
-    fun lastExecutionCtx() = executed[callId]?.lastOrNull()
-}
-
-@Serializable
-data class TestingTaskInput2(val callId2: String) {
-    companion object {
-        fun new(): TestingTaskInput2  {
-            return TestingTaskInput2(UUID.randomUUID().toString())
-        }
-        val executed: MutableSet<String> = mutableSetOf()
-    }
-
-    fun markExecuted() {
-        executed.add(callId2)
-    }
-
-    fun isExecuted() = executed.contains(callId2)
 }

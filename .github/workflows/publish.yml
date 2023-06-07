@@ -24,14 +24,10 @@ jobs:
       with:
         java-version: '18'
         distribution: 'corretto'
-    - name: Start containers for tests
-      run: docker compose -f ./docker-compose.yaml up -d --force-recreate
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2.4.0
       with:
         arguments: build
-    - name: Stop containers for tests
-      run: docker compose -f ./docker-compose.yaml down 
     - name: Publish package
       uses: gradle/gradle-build-action@v2.4.0
       with:

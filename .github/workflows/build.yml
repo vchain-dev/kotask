@@ -10,7 +10,7 @@ name: Build and test kotask
 on:
   pull_request:
     branches: [ "*" ]
-  commit:
+  push:
     branches: [ "main" ]
 
 permissions:

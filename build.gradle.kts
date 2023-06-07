@@ -19,10 +19,16 @@ repositories {
     mavenCentral()
 }
 
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
+}
+
 tasks.jar {
     manifest {
-        attributes(mapOf("Implementation-Title" to project.name,
-            "Implementation-Version" to project.version))
+        attributes(mapOf(
+            "Implementation-Title" to project.name,
+            "Implementation-Version" to project.version
+        ))
     }
 }
 
@@ -53,10 +59,6 @@ dependencies {
     testImplementation("io.kotest.extensions:kotest-extensions-testcontainers:1.3.4")
     testImplementation("org.testcontainers:postgresql:1.18.3")
 
-}
-
-tasks.test {
-    useJUnitPlatform()
 }
 
 tasks.publishToMavenLocal {

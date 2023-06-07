@@ -46,6 +46,13 @@ class ForceRetry(val delay: Duration): RetryControlException() {
     )
 }
 
+/**
+ * An exception that indicates that task should be retried after delay.
+ *
+ *
+ * @param delay Delay duration after which task should be retried.
+ * @constructor Creates RetryControlException instance.
+ */
 class RepeatTask(val delay: Duration): RetryControlException() {
     fun getRetryCallParams(params: CallParams) = params.copy(
         delay = delay,

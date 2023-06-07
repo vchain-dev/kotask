@@ -137,6 +137,10 @@ publishing {
                         id.set("ilyatikhonov")
                         name.set("Ilya Tikhonov")
                     }
+                    developer {
+                        id.set("baitcode")
+                        name.set("Ilia Batii")
+                    }
                 }
             }
 

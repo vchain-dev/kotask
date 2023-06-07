@@ -19,7 +19,7 @@ class LocalBroker: IMessageBroker {
         val q = queues.getOrPut(queueName) { LocalQueue() }
         val job = GlobalScope.launch {
             for (msg in q.channel) {
-                handler(msg){
+                handler(msg) {
                     // do nothing
                 }
             }

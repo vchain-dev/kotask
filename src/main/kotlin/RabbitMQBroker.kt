@@ -95,7 +95,7 @@ class RabbitMQBroker(
     }
 
     override fun close() {
-        connection.close()
+        if (connection.isOpen) connection.close()
     }
 
     fun quantizeDelayAndAssertDelayedQueue(delayMs: Long): Long {

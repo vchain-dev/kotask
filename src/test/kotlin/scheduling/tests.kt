@@ -32,12 +32,7 @@ class SchedulingPgTest: FunSpec({
 
 
 class SchedulingInMemoryTest: FunSpec({
-
     val taskManager = TaskManager(LocalBroker())
-
-    afterSpec {
-        taskManager.close()
-    }
 
     include("In memory.", schedulingTest(taskManager))
 })

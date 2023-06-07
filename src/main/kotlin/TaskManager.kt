@@ -18,7 +18,7 @@ class TaskManager(
     private val scheduler: IScheduleTracker = InMemoryScheduleTracker(),
     private val queueNamePrefix: String = "kotask-",
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
-    val schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
@@ -80,10 +80,7 @@ class TaskManager(
             scheduleAt - Clock.System.now(),
             Duration.ZERO
         )))
-        broker.submitMessage(
-            queueNameByTaskName(taskName = call.taskName),
-            call.message
-        )
+        enqueueTaskCall(call)
     }
 
     fun startWorkers(vararg tasks: Task<*>) {

@@ -8,23 +8,30 @@ import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.time.Duration
 
+class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: TaskManager) {
+    operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
+}
 
 class Task<T: Any> @PublishedApi internal constructor(
     private val inputSerializer: KSerializer<T>,
     val name: String,
     val retry: IRetryPolicy? = null,
-    val handler: TaskHandlerWithContext<T>
+    val handler: TaskHandler<T>
 ) {
     private var logger = LoggerFactory.getLogger(this::class.java)
 
     companion object {
         inline fun <reified T : Any> create(
-            name: String, retry: IRetryPolicy? = null, noinline handler: TaskHandlerWithContext<T>
+            name: String, retry: IRetryPolicy? = null, noinline handler: TaskHandler<T>
         ) = Task(serializer(), name, retry, handler)
 
         inline fun <reified T : Any> create(
-            name: String, retry: IRetryPolicy? = null, noinline handler: TaskHandler<T>
-        ) = create(name, retry, handler.toWithContext())
+            name: String, retry: IRetryPolicy? = null, noinline handler: OnlyInputTaskHandler<T>
+        ) = create(name, retry, handler.toTaskHandler())
+
+        fun create(
+            name: String, retry: IRetryPolicy? = null, handler: NoArgTaskHandler
+        ) = create(name, retry, handler.toTaskHandler())
     }
 
     fun callLater(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()) {
@@ -33,16 +40,19 @@ class Task<T: Any> @PublishedApi internal constructor(
         manager.enqueueTaskCall(this, inputStr, params)
     }
 
+    fun prepareInput(input: T, manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<T> {
+        return TaskCallFactory(this, input, manager)
+    }
+
     fun createTaskCall(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()): TaskCall {
         val inputStr = Json.encodeToString(inputSerializer, input)
-        logger.debug("Make task call for $name with input $inputStr")
         return manager.createTaskCall(this, inputStr, params)
     }
 
     suspend fun execute(inputStr: String, params: CallParams, manager: TaskManager) {
         logger.debug("Execute task $name with input $inputStr")
         // TODO: what to do with deserialization errors?
-        var  input  = Json.decodeFromString(inputSerializer, inputStr)
+        val input  = Json.decodeFromString(inputSerializer, inputStr)
         val ctx = ExecutionContext(
             params, manager, logCtx = mapOf(
                 "task" to name,
@@ -68,7 +78,6 @@ class Task<T: Any> @PublishedApi internal constructor(
             } else {
                 logger.error("Task $name failed with callId=${params.callId} and no more retries left")
             }
-
         }
     }
 
@@ -85,15 +94,21 @@ data class TaskCall(
     fun callLater(manager: TaskManager = TaskManager.getDefaultInstance()) {
         manager.enqueueTaskCall(this)
     }
-
 }
 
-typealias TaskHandlerWithContext<T> = (suspend (ctx: ExecutionContext, input: T) -> Unit)
-typealias TaskHandler<T> = (suspend (input: T) -> Unit)
+typealias TaskHandler<T> = (suspend (ctx: ExecutionContext, input: T) -> Unit)
+typealias OnlyInputTaskHandler<T> = (suspend (input: T) -> Unit)
+typealias NoArgTaskHandler = (suspend () -> Unit)
 
-fun <T> TaskHandler<T>.toWithContext(): TaskHandlerWithContext<T> {
+fun <T> OnlyInputTaskHandler<T>.toTaskHandler(): TaskHandler<T> {
     return { _: ExecutionContext, input: T ->
         this(input)
+    }
+}
+
+fun NoArgTaskHandler.toTaskHandler(): TaskHandler<Any> {
+    return { _: ExecutionContext, _: Any ->
+        this()
     }
 }
 
@@ -108,6 +123,10 @@ data class CallParams(
     val delay: Duration = Duration.ZERO,
     val attemptNum: Int = 1
 ) {
+    init {
+        if (delay < Duration.ZERO) throw IllegalArgumentException("delay")
+    }
+
     companion object {
         fun rndId() = UUID.randomUUID().toString()
     }

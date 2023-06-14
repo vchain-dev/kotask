@@ -10,13 +10,12 @@ import kotlinx.datetime.toJavaLocalDateTime
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.javatime.CurrentDateTime
 import org.jetbrains.exposed.sql.javatime.datetime
 
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.postgresql.util.PSQLException
 import org.slf4j.LoggerFactory
-import java.sql.SQLIntegrityConstraintViolationException
 
 object Schedule : Table() {
     val workloadName: Column<String> = varchar("workload_id", 512)
@@ -25,6 +24,8 @@ object Schedule : Table() {
 
     override val primaryKey = PrimaryKey(workloadName, scheduledAt, name = "PK")
 }
+
+fun Instant.toUTCLocal() = this.toLocalDateTime(TimeZone.UTC).toJavaLocalDateTime()
 
 
 class PostgresqlScheduleTracker(
@@ -46,7 +47,7 @@ class PostgresqlScheduleTracker(
             transaction {
                 Schedule.insert {
                     it[this.workloadName] = workloadName
-                    it[this.scheduledAt] = scheduleAt.toLocalDateTime(TimeZone.UTC).toJavaLocalDateTime()
+                    it[this.scheduledAt] = scheduleAt.toUTCLocal()
                 }
             }
         } catch (e: ExposedSQLException) {
@@ -54,6 +55,14 @@ class PostgresqlScheduleTracker(
             throw e
         }
         return true
+    }
+
+    override fun cleanScheduleOlderThan(minimumScheduledAt: Instant) {
+        transaction {
+            Schedule.deleteWhere {
+                this.scheduledAt.lessEq(minimumScheduledAt.toUTCLocal())
+            }
+        }
     }
 }
 

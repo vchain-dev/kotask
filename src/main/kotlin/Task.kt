@@ -12,6 +12,7 @@ class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: Task
     operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
 }
 
+@Serializable
 object NoInput
 
 class Task<T: Any> @PublishedApi internal constructor(
@@ -44,6 +45,10 @@ class Task<T: Any> @PublishedApi internal constructor(
 
     fun prepareInput(input: T, manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<T> {
         return TaskCallFactory(this, input, manager)
+    }
+
+    fun prepareInput(manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<NoInput> {
+        return TaskCallFactory(this as Task<NoInput>, NoInput, manager)
     }
 
     fun createTaskCall(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()): TaskCall {
@@ -87,11 +92,6 @@ class Task<T: Any> @PublishedApi internal constructor(
         return retry ?: manager.defaultRetryPolicy
     }
 }
-
-fun Task<NoInput>.prepareInput(manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<NoInput> {
-    return TaskCallFactory(this, NoInput, manager)
-}
-
 
 @Serializable
 data class TaskCall(

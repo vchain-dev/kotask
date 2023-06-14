@@ -7,6 +7,8 @@ import kotlinx.datetime.*
 
 interface IScheduleTracker {
     fun recordScheduling(workloadName: String, scheduleAt: Instant): Boolean
+
+    fun cleanScheduleOlderThan(minimumScheduledAt: Instant)
 }
 
 class InMemoryScheduleTracker: IScheduleTracker {
@@ -19,6 +21,15 @@ class InMemoryScheduleTracker: IScheduleTracker {
             val wasScheduled = scheduledAtTimes.add(scheduleAt.toLocalDateTime(TimeZone.UTC))
             data[workloadName] = scheduledAtTimes
             wasScheduled
+        }
+    }
+
+    override fun cleanScheduleOlderThan(minimumScheduledAt: Instant) = runBlocking {
+        lock.withLock(this) {
+            val localMinimumScheduledAt = minimumScheduledAt.toLocalDateTime(TimeZone.UTC)
+            data.forEach { (_, dates) ->
+                dates.removeIf { createdAt -> createdAt < localMinimumScheduledAt }
+            }
         }
     }
 }

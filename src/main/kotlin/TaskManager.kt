@@ -6,23 +6,29 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import cleanScheduleWorker
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
-
+// TODO(baitcode): TaskManager is getting huge
 class TaskManager(
     private val broker: IMessageBroker,
-    private val scheduler: IScheduleTracker = InMemoryScheduleTracker(),
+    val scheduler: IScheduleTracker = InMemoryScheduleTracker(),
     private val queueNamePrefix: String = "kotask-",
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
     private val schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
+    // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
+    private val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
     private var logger = LoggerFactory.getLogger(this::class.java)
+
+    fun knownSchedulerNames() = tasksSchedulers.keys.toSet()
+    fun knownWorkerNames() = knownTasks.keys.toSet()
 
     fun enqueueTaskCall(task: Task<*>, inputStr: String, params: CallParams) {
         logger.debug("Enqueue task ${task.name}")
@@ -60,16 +66,35 @@ class TaskManager(
     fun <T: Any> startScheduler(
         workloadName: String, schedulePolicy: ISchedulePolicy, taskCallFactory: TaskCallFactory<T>
     ) {
-        schedulersScope.launch {
-            while (true) {
-                logger.debug("Receiving schedule.")
-                schedulePolicy
-                    .getNextCalls()
-                    .forEach { date -> submitScheduleMessage(workloadName, date, taskCallFactory) }
-                delay(Settings.scheduleDelayDuration)
+        // TODO(baitcode): unclear how to test that schedule cleaner starts
+        // Clean schedule worker start
+        tasksSchedulers.getOrPut(cleanScheduleWorkloadName) {
+            schedulersScope.launch {
+                while (true) {
+                    onceAtMidnight
+                        .getNextCalls()
+                        .forEach { date ->
+                            submitScheduleMessage(
+                                cleanScheduleWorkloadName,
+                                date,
+                                cleanScheduleWorker.prepareInput()
+                            )
+                        }
+                    delay(Settings.scheduleDelayDuration)
+                }
             }
         }
-        
+
+        tasksSchedulers.getOrPut(workloadName) {
+            schedulersScope.launch {
+                while (true) {
+                    schedulePolicy
+                        .getNextCalls()
+                        .forEach { date -> submitScheduleMessage(workloadName, date, taskCallFactory) }
+                    delay(Settings.scheduleDelayDuration)
+                }
+            }
+        }
     }
 
     private fun <T: Any> submitScheduleMessage(workloadName: String, scheduleAt: Instant, taskCallFactory: TaskCallFactory<T>) {
@@ -77,10 +102,9 @@ class TaskManager(
             logger.trace("Scheduling $workloadName for $scheduleAt stopped. Record already exists.")
             return
         }
-        val call = taskCallFactory(CallParams(delay = maxOf(
-            scheduleAt - Clock.System.now(),
-            Duration.ZERO
-        )))
+        val call = taskCallFactory(
+            CallParams(delay = maxOf(scheduleAt - Clock.System.now(), Duration.ZERO))
+        )
         enqueueTaskCall(call)
     }
 
@@ -90,6 +114,9 @@ class TaskManager(
             return
         }
         tasks.forEach { startWorker(it) }
+
+        // System worker
+        startWorker(cleanScheduleWorker)
     }
 
     override fun close() {
@@ -101,6 +128,7 @@ class TaskManager(
     }
 
     companion object {
+        val cleanScheduleWorkloadName = "kotask-system-schedule-clean"
         private var defaultInstance: TaskManager? = null
         fun setDefaultInstance(instance: TaskManager) {
             defaultInstance = instance
@@ -109,6 +137,7 @@ class TaskManager(
     }
 
     private fun checkTaskUniq(task: Task<*>) {
+        // TODO(baitcode): Ask Ilya about this method. Seems redundant.
         knownTasks[task.name].let {
             if (it == null) {
                 knownTasks[task.name] = task

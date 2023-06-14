@@ -12,7 +12,7 @@ on:
     branches: [ "*" ]
 
 permissions:
-  contents: read
+  contents: read/write
   packages: write
 
 jobs:

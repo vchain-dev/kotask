@@ -1,14 +1,21 @@
 package com.zamna.kotask
 
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlin.concurrent.thread
 
 class LocalBroker: IMessageBroker {
+    var active = true
+    var localThread = thread {
+        while (active) {
+            Thread.sleep(200)
+        }
+    }
     var queues: MutableMap<QueueName, LocalQueue> = mutableMapOf()
+
     override fun submitMessage(queueName: QueueName, message: Message) {
         val q = queues.getOrPut(queueName) { LocalQueue() }
+
         GlobalScope.launch {
             delay(message.delayMs)
             q.channel.send(message)
@@ -17,6 +24,7 @@ class LocalBroker: IMessageBroker {
 
     override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
         val q = queues.getOrPut(queueName) { LocalQueue() }
+
         val job = GlobalScope.launch {
             for (msg in q.channel) {
                 handler(msg) {
@@ -33,6 +41,7 @@ class LocalBroker: IMessageBroker {
 
     override fun close() {
         // do nothing
+        active = false
     }
 }
 

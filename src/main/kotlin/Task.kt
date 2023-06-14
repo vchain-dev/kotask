@@ -12,6 +12,8 @@ class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: Task
     operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
 }
 
+object NoInput
+
 class Task<T: Any> @PublishedApi internal constructor(
     private val inputSerializer: KSerializer<T>,
     val name: String,
@@ -86,6 +88,11 @@ class Task<T: Any> @PublishedApi internal constructor(
     }
 }
 
+fun Task<NoInput>.prepareInput(manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<NoInput> {
+    return TaskCallFactory(this, NoInput, manager)
+}
+
+
 @Serializable
 data class TaskCall(
     val taskName: String,
@@ -106,7 +113,7 @@ fun <T> OnlyInputTaskHandler<T>.toTaskHandler(): TaskHandler<T> {
     }
 }
 
-fun NoArgTaskHandler.toTaskHandler(): TaskHandler<Any> {
+fun NoArgTaskHandler.toTaskHandler(): TaskHandler<NoInput> {
     return { _: ExecutionContext, _: Any ->
         this()
     }

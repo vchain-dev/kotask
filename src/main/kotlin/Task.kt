@@ -46,6 +46,10 @@ class Task<T: Any> @PublishedApi internal constructor(
         return TaskCallFactory(this, input, manager)
     }
 
+    fun prepareInput(manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<NoInput> {
+        return TaskCallFactory(this as Task<NoInput>, NoInput, manager)
+    }
+
     fun createTaskCall(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()): TaskCall {
         val inputStr = Json.encodeToString(inputSerializer, input)
         return manager.createTaskCall(this, inputStr, params)
@@ -87,11 +91,6 @@ class Task<T: Any> @PublishedApi internal constructor(
         return retry ?: manager.defaultRetryPolicy
     }
 }
-
-fun Task<NoInput>.prepareInput(manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<NoInput> {
-    return TaskCallFactory(this, NoInput, manager)
-}
-
 
 @Serializable
 data class TaskCall(

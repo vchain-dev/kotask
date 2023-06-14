@@ -19,3 +19,5 @@ class Cron(
         .nextRunList()
         .map { it.toInstant(TimeZone.currentSystemDefault()) }
 }
+
+val onceAtMidnight  = Cron("0 0 0 ? * * *")

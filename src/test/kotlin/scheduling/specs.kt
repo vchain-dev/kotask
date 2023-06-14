@@ -2,6 +2,7 @@ package com.zamna.kotask.scheduling
 
 import Settings
 import TaskTrackExecutionWithContextCountInput
+import cleanScheduleWorker
 import com.zamna.kotask.ISchedulePolicy
 import com.zamna.kotask.Task
 import com.zamna.kotask.TaskManager
@@ -32,6 +33,8 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
     }
 
     val logger = LoggerFactory.getLogger(this::class.java)
+
+    val schedulingNoInput = Task.create("testing-scheduling-noinput") {}
 
     val schedulingTask1 = Task.create("testing-scheduling-task1") { ctx, input: TaskTrackExecutionWithContextCountInput ->
         logger.info("Executed")
@@ -102,5 +105,22 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
         }
 
     }
+
+    test("Start scheduler. Check that schedule cleaner also starts.") {
+        TaskTrackExecutionWithContextCountInput.new().let {
+            val schedule = ScheduleTestTaskPolicy()
+            val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
+            taskManager.startScheduler(
+                uniqueWorkflowName,
+                schedule,
+                schedulingNoInput.prepareInput()
+            )
+            eventually(500) {
+                taskManager.knownSchedulerNames().contains(TaskManager.cleanScheduleWorkloadName)
+                taskManager.knownWorkerNames().contains(cleanScheduleWorker.name)
+            }
+        }
+    }
+
 
 }

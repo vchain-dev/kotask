@@ -11,10 +11,6 @@ on:
   push:
     branches: [ "*" ]
 
-permissions:
-  contents: read/write
-  packages: write
-
 jobs:
   build_and_test:
     runs-on: ubuntu-latest

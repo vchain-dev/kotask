@@ -69,6 +69,7 @@ class TaskManager(
                 delay(Settings.scheduleDelayDuration)
             }
         }
+        
     }
 
     private fun <T: Any> submitScheduleMessage(workloadName: String, scheduleAt: Instant, taskCallFactory: TaskCallFactory<T>) {
@@ -95,7 +96,6 @@ class TaskManager(
         broker.close()
         schedulersScope.cancel()
     }
-
     init {
         setDefaultInstance(this)
     }

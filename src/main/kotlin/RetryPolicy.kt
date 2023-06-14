@@ -22,7 +22,7 @@ open class RetryPolicy (
         } else {
             delay
         }
-        return params.copy(delay = delay, attemptNum = params.attemptNum + 1)
+        return params.nextAttempt().copy(delay = delay)
     }
 }
 

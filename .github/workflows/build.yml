@@ -5,17 +5,11 @@
 # This workflow will build a Java project with Gradle and cache/restore any dependencies to improve the workflow execution time
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-java-with-gradle
 
-name: Build and test kotask
+name: Build and Test
 
 on:
-  pull_request:
-    branches: [ "*" ]
   push:
-    branches: [ "main" ]
-
-permissions:
-  contents: read
-  packages: write
+    branches: [ "*" ]
 
 jobs:
   build_and_test:
@@ -30,4 +24,15 @@ jobs:
     - name: Build with Gradle
       uses: gradle/gradle-build-action@v2.4.0
       with:
+        gradle-version: 7.3.3
         arguments: build
+    - name: Upload build reports
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-reports
+        path: build/reports/
+    - name: Publish Test Report
+      uses: mikepenz/action-junit-report@v3
+      if: success() || failure()
+      with:
+        report_paths: '**/build/test-results/test/TEST-*.xml'

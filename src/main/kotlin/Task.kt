@@ -12,6 +12,7 @@ class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: Task
     operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
 }
 
+@Serializable
 object NoInput
 
 class Task<T: Any> @PublishedApi internal constructor(

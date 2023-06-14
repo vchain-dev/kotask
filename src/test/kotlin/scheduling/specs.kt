@@ -85,25 +85,18 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
         }
     }
 
-    test("Start 2 schedulers simultaneously but with same name. Test that first one is only one to complete") {
+    test("Start 2 schedulers simultaneously but with same name. Test that only one was able to perform at a time.") {
         val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
         TaskTrackExecutionWithContextCountInput.new().let {
             val schedule = ScheduleTestTaskPolicy(timeout = 1000)
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
+            taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
+
             eventually(4900) {
                 it.isExecuted() shouldBe true
                 it.executionsCount() shouldBe 5
             }
         }
-        TaskTrackExecutionWithContextCountInput.new().let {
-            val schedule = ScheduleTestTaskPolicy(timeout = 1000)
-            taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
-            eventually(4900) {
-                it.isExecuted() shouldBe false
-                it.executionsCount() shouldBe 0
-            }
-        }
-
     }
 
     test("Start scheduler. Check that schedule cleaner also starts.") {

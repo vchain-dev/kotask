@@ -33,7 +33,7 @@ class Task<T: Any> @PublishedApi internal constructor(
         ) = create(name, retry, handler.toTaskHandler())
 
         fun create(
-            name: String, retry: IRetryPolicy? = null, handler: NoArgTaskHandler
+            name: String, retry: IRetryPolicy? = null, handler: NoInputTaskHandler
         ) = create(name, retry, handler.toTaskHandler())
     }
 
@@ -105,7 +105,7 @@ data class TaskCall(
 
 typealias TaskHandler<T> = (suspend (ctx: ExecutionContext, input: T) -> Unit)
 typealias OnlyInputTaskHandler<T> = (suspend (input: T) -> Unit)
-typealias NoArgTaskHandler = (suspend () -> Unit)
+typealias NoInputTaskHandler = (suspend (ctx: ExecutionContext) -> Unit)
 
 fun <T> OnlyInputTaskHandler<T>.toTaskHandler(): TaskHandler<T> {
     return { _: ExecutionContext, input: T ->
@@ -113,9 +113,9 @@ fun <T> OnlyInputTaskHandler<T>.toTaskHandler(): TaskHandler<T> {
     }
 }
 
-fun NoArgTaskHandler.toTaskHandler(): TaskHandler<NoInput> {
-    return { _: ExecutionContext, _: Any ->
-        this()
+fun NoInputTaskHandler.toTaskHandler(): TaskHandler<NoInput> {
+    return { ctx: ExecutionContext, _: Any ->
+        this(ctx)
     }
 }
 

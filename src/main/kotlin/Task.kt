@@ -32,8 +32,8 @@ class Task<T: Any> @PublishedApi internal constructor(
             name: String, retry: IRetryPolicy? = null, noinline handler: OnlyInputTaskHandler<T>
         ) = create(name, retry, handler.toTaskHandler())
 
-        fun create(
-            name: String, retry: IRetryPolicy? = null, handler: NoInputTaskHandler
+        inline fun create(
+            name: String, retry: IRetryPolicy? = null, noinline handler: NoInputTaskHandler
         ) = create(name, retry, handler.toTaskHandler())
     }
 

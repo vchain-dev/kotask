@@ -3,7 +3,7 @@ package com.zamna.kotask.scheduling
 import Settings
 import TaskTrackExecutionWithContextCountInput
 import cleanScheduleWorker
-import com.zamna.kotask.ISchedulePolicy
+import com.zamna.kotask.IRepeatingSchedulePolicy
 import com.zamna.kotask.Task
 import com.zamna.kotask.TaskManager
 import io.kotest.common.ExperimentalKotest
@@ -22,14 +22,14 @@ import kotlin.time.Duration.Companion.seconds
 fun schedulingTest(taskManager: TaskManager) = funSpec {
     Settings.scheduleDelayDuration = 1.seconds
 
-    class ScheduleTestTaskPolicy(
+    class RepeatingScheduleTestTaskPolicy(
         val count: Int = 10,
         val timeout: Int = 200
-    ): ISchedulePolicy {
+    ): IRepeatingSchedulePolicy {
         val startingPoint = Clock.System.now()
-        override fun getNextCalls(): List<Instant> = (0 until count).map {
+        override fun getNextCalls() = (0 until count).map {
             startingPoint + timeout.milliseconds * it
-        }.toList()
+        }.asSequence()
     }
 
     val logger = LoggerFactory.getLogger(this::class.java)
@@ -48,7 +48,7 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
 
     test("Start schedulers. Check that schedule has no duplicates.") {
         TaskTrackExecutionWithContextCountInput.new().let {
-            val schedule = ScheduleTestTaskPolicy()
+            val schedule = RepeatingScheduleTestTaskPolicy()
             val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
             eventually(6000) {
@@ -60,7 +60,7 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
 
     test("Start scheduler. Test that only part of schedule was executed in 5 sec (once every sec).") {
         TaskTrackExecutionWithContextCountInput.new().let {
-            val schedule = ScheduleTestTaskPolicy(timeout = 1000)
+            val schedule = RepeatingScheduleTestTaskPolicy(timeout = 1000)
             val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
             eventually(4900) {
@@ -73,7 +73,7 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
     test("Start 2 schedulers simultaneously. Test that both complete") {
         val input1 = TaskTrackExecutionWithContextCountInput.new()
         val input2 = TaskTrackExecutionWithContextCountInput.new()
-        val schedule = ScheduleTestTaskPolicy(timeout = 200)
+        val schedule = RepeatingScheduleTestTaskPolicy(timeout = 200)
         taskManager.startScheduler("task1_${UUID.randomUUID()}", schedule, schedulingTask1.prepareInput(input1))
         taskManager.startScheduler("task2_${UUID.randomUUID()}", schedule, schedulingTask2.prepareInput(input2))
 
@@ -88,7 +88,7 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
     test("Start 2 schedulers simultaneously but with same name. Test that only one was able to perform at a time.") {
         val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
         TaskTrackExecutionWithContextCountInput.new().let {
-            val schedule = ScheduleTestTaskPolicy(timeout = 1000)
+            val schedule = RepeatingScheduleTestTaskPolicy(timeout = 1000)
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
 
@@ -101,7 +101,7 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
 
     test("Start scheduler. Check that schedule cleaner also starts.") {
         TaskTrackExecutionWithContextCountInput.new().let {
-            val schedule = ScheduleTestTaskPolicy()
+            val schedule = RepeatingScheduleTestTaskPolicy()
             val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
             taskManager.startScheduler(
                 uniqueWorkflowName,

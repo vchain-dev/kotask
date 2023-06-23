@@ -42,7 +42,9 @@ dependencies {
     implementation("ch.qos.logback:logback-classic:1.4.6")
     implementation("com.rabbitmq:amqp-client:5.16.0")
 
-    implementation("com.ucasoft.kcron:kcron-common:0.6.0")
+    implementation("com.ucasoft.kcron:kcron-common:0.6.0") {
+        isTransitive = true
+    }
 
     // postgresql (should be moved out of main bundle)
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")

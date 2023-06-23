@@ -7,10 +7,8 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import cleanScheduleWorker
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import java.time.format.DateTimeFormatter
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -67,7 +65,7 @@ class TaskManager(
     }
 
     fun <T: Any> startScheduler(
-        workloadName: String, schedulePolicy: ISchedulePolicy, taskCallFactory: TaskCallFactory<T>
+        workloadName: String, schedulePolicy: IRepeatingSchedulePolicy, taskCallFactory: TaskCallFactory<T>
     ) {
         // TODO(baitcode): unclear how to test that schedule cleaner starts
         // Clean schedule worker start
@@ -76,6 +74,7 @@ class TaskManager(
                 while (true) {
                     onceAtMidnight
                         .getNextCalls()
+                        .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
                         .forEach { date ->
                             submitScheduleMessage(
                                 cleanScheduleWorkloadName,
@@ -93,6 +92,7 @@ class TaskManager(
                 while (true) {
                     schedulePolicy
                         .getNextCalls()
+                        .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
                         .forEach { date -> submitScheduleMessage(workloadName, date, taskCallFactory) }
                     delay(Settings.scheduleDelayDuration)
                 }

@@ -9,8 +9,12 @@ object Settings {
         .seconds
 
     var scheduleTTL: Duration = System.getenv()
-        .getOrDefault("KOTASK_SCHEDULE_CLEANUP_SECONDS", "432000")// 50 days
+        .getOrDefault("KOTASK_SCHEDULE_CLEANUP_SECONDS", "432000") // 50 days
         .toInt()
         .seconds
 
+    var schedulingHorizon: Duration = System.getenv()
+        .getOrDefault("KOTASK_SCHEDULEING_HORIZON", "86400") // 1 days
+        .toInt()
+        .seconds
 }

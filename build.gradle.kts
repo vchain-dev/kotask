@@ -40,9 +40,10 @@ dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
     implementation("org.slf4j:slf4j-api:2.0.5")
     implementation("ch.qos.logback:logback-classic:1.4.6")
-    implementation("com.rabbitmq:amqp-client:5.16.0")
-
-    implementation("com.ucasoft.kcron:kcron-common:0.6.0") {
+    implementation("com.rabbitmq:amqp-client:5.16.0") {
+        isTransitive = true
+    }
+    implementation("com.cronutils:cron-utils:9.2.0") {
         isTransitive = true
     }
 
@@ -60,6 +61,7 @@ dependencies {
     testImplementation("io.kotest:kotest-assertions-json:5.5.5")
     testImplementation("io.kotest.extensions:kotest-extensions-testcontainers:1.3.4")
     testImplementation("org.testcontainers:postgresql:1.18.3")
+    testImplementation("io.mockk:mockk:1.13.5")
 
 }
 

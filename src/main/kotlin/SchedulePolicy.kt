@@ -1,23 +1,32 @@
 package com.zamna.kotask
 
-import com.ucasoft.kcron.KCron
-import com.ucasoft.kcron.builders.*
-import com.ucasoft.kcron.common.WeekDays
+import com.cronutils.model.CronType
+import com.cronutils.model.definition.CronDefinitionBuilder
+import com.cronutils.model.time.ExecutionTime
+import com.cronutils.parser.CronParser
 import kotlinx.datetime.*
+import java.time.ZoneOffset
 
-interface ISchedulePolicy {
-    fun getNextCalls(): List<Instant>
+interface IRepeatingSchedulePolicy {
+    fun getNextCalls(): Sequence<Instant>
 }
+
+private val parser: CronParser = CronParser(
+    CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX)
+)
 
 class Cron(
     template: String,
-    firstDayOfWeek: WeekDays = WeekDays.Monday,
-    private val builder: Builder = KCron.parseAndBuild(template, firstDayOfWeek)
-): ISchedulePolicy {
-    // TODO: implement until
-    override fun getNextCalls(): List<Instant> = builder
-        .nextRunList()
-        .map { it.toInstant(TimeZone.currentSystemDefault()) }
+    private val executionTime: ExecutionTime = ExecutionTime.forCron(parser.parse(template))
+): IRepeatingSchedulePolicy {
+    override fun getNextCalls(): Sequence<Instant> = generateSequence(
+        Clock.System.now()
+    ) {
+        val javaInstant = it.toJavaInstant().atZone(ZoneOffset.systemDefault())
+        val nexExecutionJavaZonedDt = executionTime.nextExecution(javaInstant).get()
+        nexExecutionJavaZonedDt.toInstant().toKotlinInstant()
+    }
 }
 
-val onceAtMidnight  = Cron("0 0 0 ? * * *")
+
+val onceAtMidnight = Cron("0 0 * * *")

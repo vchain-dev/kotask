@@ -24,7 +24,7 @@ fun main() {
         scheduledTask2, // NOTE: defined in 2 places
         SomeService("dependency").serviceTask
     )
-    manager.startScheduler("task1", Cron("* * * ? * * *"), scheduledTask1.prepareInput("World"))
-    manager.startScheduler("task2", Cron("* * * ? * * *"), scheduledTask2.prepareInput(5))
-    manager.startScheduler("task2", Cron("* * * ? * * *"), scheduledTask3.prepareInput())
+    manager.startScheduler("task1", Cron("* * * * *"), scheduledTask1.prepareInput("World"))
+    manager.startScheduler("task2", Cron("* * * * *"), scheduledTask2.prepareInput(5))
+    manager.startScheduler("task2", Cron("* * * * *"), scheduledTask3.prepareInput())
 }

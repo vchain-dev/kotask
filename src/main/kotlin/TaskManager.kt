@@ -7,6 +7,9 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import cleanScheduleWorker
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -102,8 +105,12 @@ class TaskManager(
             logger.trace("Scheduling $workloadName for $scheduleAt stopped. Record already exists.")
             return
         }
+
         val call = taskCallFactory(
-            CallParams(delay = maxOf(scheduleAt - Clock.System.now(), Duration.ZERO))
+            CallParams(
+                callId = "${workloadName}-${scheduleAt}",
+                delay = maxOf(scheduleAt - Clock.System.now(), Duration.ZERO)
+            )
         )
         enqueueTaskCall(call)
     }

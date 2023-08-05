@@ -14,7 +14,7 @@ object Settings {
         .seconds
 
     var schedulingHorizon: Duration = System.getenv()
-        .getOrDefault("KOTASK_SCHEDULEING_HORIZON", "86400") // 1 days
+        .getOrDefault("KOTASK_SCHEDULEING_HORIZON", "86400") // 1 day
         .toInt()
         .seconds
 }

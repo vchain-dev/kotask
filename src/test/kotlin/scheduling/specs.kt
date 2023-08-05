@@ -1,8 +1,3 @@
-package com.zamna.kotask.scheduling
-
-import Settings
-import TaskTrackExecutionWithContextCountInput
-import cleanScheduleWorker
 import com.zamna.kotask.IRepeatingSchedulePolicy
 import com.zamna.kotask.Task
 import com.zamna.kotask.TaskManager
@@ -11,7 +6,6 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.shouldBe
 import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
@@ -114,6 +108,4 @@ fun schedulingTest(taskManager: TaskManager) = funSpec {
             }
         }
     }
-
-
 }

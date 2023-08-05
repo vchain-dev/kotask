@@ -40,7 +40,6 @@ class RabbitMQBroker(
             channel.queueDeclare(queueName, true, false, false, null)
             createdQueues.add(queueName)
         }
-        
     }
     
     override fun submitMessage(queueName: QueueName, message: Message) {

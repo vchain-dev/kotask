@@ -4,6 +4,7 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+import mu.withLoggingContext
 import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.time.Duration
@@ -14,6 +15,16 @@ class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: Task
 
 @Serializable
 object NoInput
+
+object TaskEvents {
+    val MESSAGE_RECEIVED: String = "MESSAGE_RECEIVED"
+    val MESSAGE_SENT: String = "MESSAGE_SENT"
+    val MESSAGE_SUBMIT_RETRY: String = "MESSAGE_SUBMIT_RETRY"
+    val MESSAGE_FAIL: String = "MESSAGE_FAIL"
+    val MESSAGE_FAIL_RETRY: String = "MESSAGE_FAIL_RETRY"
+    val MESSAGE_FAIL_NO_RETRY: String = "MESSAGE_FAIL_NO_RETRY"
+    val MESSAGE_COMPLETE: String = "MESSAGE_COMPLETE"
+}
 
 class Task<T: Any> @PublishedApi internal constructor(
     private val inputSerializer: KSerializer<T>,
@@ -39,8 +50,12 @@ class Task<T: Any> @PublishedApi internal constructor(
 
     fun callLater(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()) {
         val inputStr = Json.encodeToString(inputSerializer, input)
-        logger.debug("Call task $name later with input $inputStr")
         manager.enqueueTaskCall(this, inputStr, params)
+        withLoggingContext(
+            "action" to TaskEvents.MESSAGE_SENT
+        ) {
+            logger.debug("Call task $name later with input $inputStr")
+        }
     }
 
     fun prepareInput(input: T, manager: TaskManager = TaskManager.getDefaultInstance()): TaskCallFactory<T> {
@@ -66,24 +81,49 @@ class Task<T: Any> @PublishedApi internal constructor(
                 "callId" to params.callId,
             )
         )
-        logger.info("Start task $name with callId=${params.callId}")
-        try {
-            handler(ctx, input)
-        } catch (e: RepeatTask) {
-            logger.info("Received RepeatTask from task $name with callId=${params.callId}")
-            manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
-        } catch (e: ForceRetry) {
-            logger.info("Received ForceRetry from task $name with callId=${params.callId}")
-            manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
-        } catch (e: FailNoRetry) {
-            logger.info("Received NoRetry from task $name with callId=${params.callId}")
-        } catch (e: Throwable) {
-            logger.error("Task $name failed with callId=${params.callId}", e)
-            if (getRetryPolicy(manager).shouldRetry(params)) {
-                logger.info("Retry task $name with callId=${params.callId}")
-                manager.enqueueTaskCall(this, inputStr, getRetryPolicy(manager).getNextRetryCallParams(params))
-            } else {
-                logger.error("Task $name failed with callId=${params.callId} and no more retries left")
+        withLoggingContext(
+            "callId" to params.callId,
+            "task" to name,
+            restorePrevious = true
+        ) {
+            withLoggingContext("action" to TaskEvents.MESSAGE_RECEIVED, restorePrevious = true) {
+                logger.info("Start task with name=$name callId=${params.callId}")
+            }
+            try {
+                handler(ctx, input)
+
+                withLoggingContext("action" to TaskEvents.MESSAGE_COMPLETE, restorePrevious = true) {
+                    logger.info("Complete task $name with callId=${params.callId}")
+                }
+            } catch (e: RepeatTask) {
+                withLoggingContext("action" to TaskEvents.MESSAGE_SUBMIT_RETRY, restorePrevious = true) {
+                    logger.info("Received RepeatTask from task $name with callId=${params.callId}")
+                }
+                manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
+            } catch (e: ForceRetry) {
+                withLoggingContext("action" to TaskEvents.MESSAGE_SUBMIT_RETRY, restorePrevious = true) {
+                    logger.info("Received ForceRetry from task $name with callId=${params.callId}")
+                }
+                manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
+            } catch (e: FailNoRetry) {
+                withLoggingContext("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY, restorePrevious = true) {
+                    logger.info("Received NoRetry from task $name with callId=${params.callId}")
+                }
+            } catch (e: Throwable) {
+                withLoggingContext("action" to TaskEvents.MESSAGE_FAIL, restorePrevious = true) {
+                    logger.error("Task $name failed with callId=${params.callId}", e)
+                }
+
+                if (getRetryPolicy(manager).shouldRetry(params)) {
+                    withLoggingContext("action" to TaskEvents.MESSAGE_FAIL_RETRY, restorePrevious = true) {
+                        logger.info("Retry task $name with callId=${params.callId}")
+                    }
+                    manager.enqueueTaskCall(this, inputStr, getRetryPolicy(manager).getNextRetryCallParams(params))
+                } else {
+                    withLoggingContext("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY, restorePrevious = true) {
+                        logger.error("Task $name failed with callId=${params.callId} and no more retries left")
+                    }
+                }
             }
         }
     }

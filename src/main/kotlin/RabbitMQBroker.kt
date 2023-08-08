@@ -58,6 +58,7 @@ class RabbitMQBroker(
 
         val exchangeName = if (quantizedDelayMs > 0) delayExchangeName else ""
         channel.basicPublish(exchangeName, queueName, props, message.body)
+        // TODO: Log publish
     }
 
     override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {

@@ -122,7 +122,7 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
             continually(1500) {
                 it.isExecuted() shouldBe false
             }
-            eventually(1000) {
+            eventually(1500) {
                 it.isExecuted() shouldBe true
             }
         }

@@ -117,7 +117,9 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
         }
 
         TaskTrackExecutionInput.new().let {
-            testTask2.callLater(it, CallParams(delay = 2.toDuration(DurationUnit.SECONDS)))
+            launch {
+                testTask2.callLater(it, CallParams(delay = 2.toDuration(DurationUnit.SECONDS)))
+            }
             it.isExecuted() shouldBe false
             continually(1500) {
                 it.isExecuted() shouldBe false

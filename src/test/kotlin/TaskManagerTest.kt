@@ -12,6 +12,7 @@ import io.kotest.framework.concurrency.eventually
 import io.kotest.framework.concurrency.until
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
 import org.testcontainers.containers.wait.strategy.Wait
 import java.lang.Thread.sleep
 import kotlin.reflect.KClass
@@ -100,7 +101,6 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
     beforeTest {
         TaskManager.setDefaultInstance(taskManager)
         taskManager.startWorkers(testTask1, testTask2, testFailingTask, testFailingOnceTask)
-        sleep(2000) // Azure workers need time to spin up
     }
 
     // Tests
@@ -114,17 +114,17 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
         }
 
         TaskTrackExecutionInput.new().let {
-            launch {
-                testTask2.callLater(it, CallParams(delay = 2.toDuration(DurationUnit.SECONDS)))
-            }
+            testTask2.callLater(it, CallParams(delay = 2.toDuration(DurationUnit.SECONDS)))
             it.isExecuted() shouldBe false
             continually(1500) {
                 it.isExecuted() shouldBe false
             }
-            eventually(1500) {
+            eventually(1000) {
                 it.isExecuted() shouldBe true
             }
         }
+
+
 
     }
 

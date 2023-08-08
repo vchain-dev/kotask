@@ -15,6 +15,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.testcontainers.containers.wait.strategy.Wait
 import java.lang.Thread.sleep
+import java.util.*
 import kotlin.reflect.KClass
 import kotlin.time.Duration
 import kotlin.time.DurationUnit
@@ -65,19 +66,21 @@ class TaskManagerWithAzureTest: FunSpec({
     include("Azure Broker", taskManagerTest(taskManager))
 })
 
+fun randomSuffix(): String = UUID.randomUUID().toString().substring(0, 10)
+
 @OptIn(ExperimentalKotest::class)
 fun taskManagerTest(taskManager: TaskManager) = funSpec {
     // Tasks to test
-    val testTask1 = Task.create("testing-task1", ) { ctx, input: TaskTrackExecutionWithContextCountInput ->
+    val testTask1 = Task.create("testing-task1-${randomSuffix()}", ) { ctx, input: TaskTrackExecutionWithContextCountInput ->
         input.markExecuted(ctx)
     }
 
-    val testTask2 = Task.create("testing-task2", ) { input: TaskTrackExecutionInput ->
+    val testTask2 = Task.create("testing-task2-${randomSuffix()}", ) { input: TaskTrackExecutionInput ->
         input.markExecuted()
     }
 
     val testFailingTask = Task.create(
-        "testing-failing-task",
+        "testing-failing-task-${randomSuffix()}",
         RetryPolicy(
             1.toDuration(DurationUnit.SECONDS),
             3,
@@ -89,7 +92,7 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
     }
 
     val testFailingOnceTask = Task.create(
-        "testing-failing-once-task",
+        "testing-failing-once-task-${randomSuffix()}",
         RetryPolicy(1.toDuration(DurationUnit.SECONDS), 0)
     ) { ctx, input: TaskTrackExecutionWithContextCountInput ->
         input.markExecuted(ctx)

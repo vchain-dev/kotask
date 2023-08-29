@@ -88,9 +88,10 @@ class AzureServiceBusBroker(
                 )
 
                 runBlocking {
-                    handler(msg) { }
+                    handler(msg) {
+                        receiver.complete(message).subscribe()
+                    }
                 }
-                receiver.complete(message).subscribe()
             }
 
         return AzureConsumer(receiver)

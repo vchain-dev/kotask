@@ -29,6 +29,8 @@ jobs:
       uses: gradle/gradle-build-action@v2.4.0
       with:
         arguments: build
+      env:
+        AZURE_URI: ${{ secrets.AZURE_URI }}
     - name: Publish package
       uses: gradle/gradle-build-action@v2.4.0
       with:

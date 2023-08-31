@@ -1,13 +1,8 @@
-package com.zamna.kotask.scheduling
-
 import com.zamna.kotask.LocalBroker
 import com.zamna.kotask.TaskManager
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.framework.concurrency.eventually
-import io.kotest.matchers.shouldBe
 import org.testcontainers.containers.PostgreSQLContainer
 import plugins.scheduler.pg.PostgresqlScheduleTracker
-import java.util.*
 
 
 class SchedulingPgTest: FunSpec({
@@ -33,11 +28,8 @@ class SchedulingPgTest: FunSpec({
     include("Postgresql.", schedulingTest(taskManager))
 })
 
-
 class SchedulingInMemoryTest: FunSpec({
     val taskManager = TaskManager(LocalBroker())
 
     include("In memory.", schedulingTest(taskManager))
-
-
 })

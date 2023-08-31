@@ -7,7 +7,7 @@ import kotlin.time.Duration.Companion.seconds
 
 
 @OptIn(DelicateCoroutinesApi::class)
-fun main(vararg args: String) {
+fun main() {
     val task = Task.create("testing-task1") {
         print("Executed")
     }

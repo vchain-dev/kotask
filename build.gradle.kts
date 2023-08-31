@@ -1,6 +1,6 @@
 plugins {
-    kotlin("jvm") version "1.7.20"
-    kotlin("plugin.serialization") version "1.7.20"
+    kotlin("jvm") version "1.9.0"
+    kotlin("plugin.serialization") version "1.9.0"
 
     id("java-library")
     id("maven-publish")
@@ -8,12 +8,29 @@ plugins {
     id("org.jetbrains.dokka") version "1.8.10"
 }
 
+println("Java version for current gradle run: ${org.gradle.internal.jvm.Jvm.current()}")
+
 group = "com.zamna"
 version = "0.8.0"
 description = "Kotlin asynchronous task framework using RabbitMQ."
 
 val kotestVersion = "5.5.4"
 val exposedVersion: String = "0.41.1"
+
+
+val jvmTargetVersion = JavaLanguageVersion.of(18)
+
+java {
+    toolchain {
+        languageVersion.set(jvmTargetVersion)
+    }
+}
+
+kotlin {
+    jvmToolchain {
+        languageVersion.set(jvmTargetVersion)
+    }
+}
 
 repositories {
     mavenCentral()
@@ -64,7 +81,6 @@ dependencies {
     testImplementation("io.kotest.extensions:kotest-extensions-testcontainers:1.3.4")
     testImplementation("org.testcontainers:postgresql:1.18.3")
     testImplementation("io.mockk:mockk:1.13.5")
-
 }
 
 tasks.publishToMavenLocal {

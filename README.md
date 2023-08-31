@@ -12,8 +12,8 @@ val simpleTask = Task.create("simple-task") { input: String ->
 
 And then schedule job execution:
 ```kotlin
-val manager = TaskManager(RabbitMQBroker())
-simpleTask.callLater("World", CallParams(delay = 3.seconds))
+val manager = TaskManager(RabbitMQBroker()) // This is one of supported brokers
+simpleTask.callLater("World", CallParams(delay = 3.seconds)) // Will execute job in 3 seconds from now
 ```
 
 And deploy run worker process that will execute the job:
@@ -23,22 +23,13 @@ manager.startWorkers(simpleTask)
 ```
 
 ## Usage
-See [/example](src/main/kotlin/example) for a working example.
-
-## RabbitMQ
-RabbitMQ with [delayed messages plugin](https://github.com/rabbitmq/rabbitmq-delayed-message-exchange) is required.
-For local development, you can use [docker-compose.yml](docker-compose.yml) to start RabbitMQ with the plugin:
-```bash
-docker-compose up
-```
-It will start RabbitMQ on port 5672 and [management web interface](http://localhost:15672) on port 15672 with default credentials `guest:guest`.
-
+See [/example](src/main/kotlin/example) for examples.
 
 ## Notes
 
 ### Tasks
 
-Currently framework supports 3 types of tasks.
+Currently, framework supports 2 types of tasks.
 
 Normal task. This type of task allows you to access taskManager through context properties.
 As well as additional metadata.
@@ -55,9 +46,10 @@ val simpleTask = Task.create("simple-task") { input: String ->
 }
 ```
 
-Simplified task with context only. Does not have any input, but receives context by default.
-```kotlin
-val noArgTask = Task.create("no-arg-task") { 
-    println("Hello, Stranger")
-}
-```
+### Brokers
+
+Currently, supported brokers are:
+
+- RabbitMQ (GCP, AWS)
+- Azure Service Bus
+

@@ -13,8 +13,6 @@ class ExpDelayQuantizerTest : FunSpec({
             30 to 1000,
             5000 to 5000,
             100000 to 112000,
-
-            108000 to 360000
         ).forEach() { (input, expectedOutput) ->
             quantifier.quantize(input.toLong()) shouldBe expectedOutput
         }

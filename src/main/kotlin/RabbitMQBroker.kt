@@ -12,7 +12,7 @@ const val HEADERS_PREFIX = "kot-"
 
 class RabbitMQBroker(
     uri: String = "amqp://guest:guest@localhost",
-    metricsPrefix: String = "",
+    metricsPrefix: String? = null,
     val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer()
 ) : IMessageBroker {
     private val createdQueues = mutableSetOf<QueueName>()
@@ -34,7 +34,7 @@ class RabbitMQBroker(
 
     init {
         val factory = ConnectionFactory()
-        if (metricsPrefix != "") {
+        if (metricsPrefix != null) {
             factory.metricsCollector = metricsCollector
         }
         factory.setUri(uri)

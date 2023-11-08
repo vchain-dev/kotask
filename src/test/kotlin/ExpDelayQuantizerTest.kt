@@ -13,6 +13,8 @@ class ExpDelayQuantizerTest : FunSpec({
             30 to 1000,
             5000 to 5000,
             100000 to 112000,
+
+            108000 to 360000
         ).forEach() { (input, expectedOutput) ->
             quantifier.quantize(input.toLong()) shouldBe expectedOutput
         }
@@ -20,7 +22,7 @@ class ExpDelayQuantizerTest : FunSpec({
 
     xtest("print all quants") {
         var prevQ: Long = 0
-        for (i in 1..100000000) {
+        for (i in 1..1000000000) {
             val quantified = quantifier.quantize(i.toLong())
             val duration = quantified.toDuration(DurationUnit.MILLISECONDS)
             if (prevQ != quantified) {

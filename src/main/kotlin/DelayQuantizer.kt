@@ -1,4 +1,3 @@
-
 import kotlin.math.ceil
 import kotlin.math.log2
 import kotlin.math.pow
@@ -64,30 +63,74 @@ import kotlin.math.pow
  * 1h 42m 24s
  * 1h 59m 28s
  * 2h 16m 32s
- * 2h 50m 40s
- * 3h 24m 48s
- * 3h 58m 56s
- * 4h 33m 4s
- * 5h 41m 20s
- * 6h 49m 36s
- * 7h 57m 52s
- * 9h 6m 8s
- * 11h 22m 40s
- * 13h 39m 12s
- * 15h 55m 44s
- * 18h 12m 16s
- * 22h 45m 20s
- * 1d 3h 18m 24s
+ * 2h 30m
+ * 3h
+ * 3h 30m
+ * 4h
+ * 4h 30m
+ * 5h
+ * 5h 30m
+ * 6h
+ * 6h 30m
+ * 7h
+ * 7h 30m
+ * 8h
+ * 8h 30m
+ * 9h
+ * 9h 30m
+ * 10h
+ * 10h 30m
+ * 11h
+ * 11h 30m
+ * 12h
+ * 12h 30m
+ * 13h
+ * 13h 30m
+ * 14h
+ * 14h 30m
+ * 15h
+ * 15h 30m
+ * 16h
+ * 16h 30m
+ * 17h
+ * 17h 30m
+ * 18h
+ * 18h 30m
+ * 19h
+ * 19h 30m
+ * 20h
+ * 20h 30m
+ * 21h
+ * 21h 30m
+ * 22h
+ * 22h 30m
+ * 23h
+ * 23h 30m
+ * 1d
+ * 1d 0h 30m
+ * 1d 1h
+ * 1d 1h 30m
+ * 1d 2h
+ * 1d 2h 30m
+ * 1d 3h
  */
-class ExpDelayQuantizer(private val step: Int = 8): IDelayQuantizer {
+class ExpDelayQuantizer(
+    private val step: Int = 8,
+    private val linearFrom: Long = 7200000 /*2h*/,
+    private val linearQuant: Long = 1800000 /*30min*/
+) : IDelayQuantizer {
 
     override fun quantize(inputMs: Long): Long {
         val inputSec = ceil(inputMs.toDouble() / 1000)
         if (inputSec <= 0) {
             return 0
+        } else if (inputMs > linearFrom) {
+            val a = ceil(inputMs.toDouble()/linearQuant).toLong()
+            val b = a * linearQuant
+            return b
         }
 
-        val powerOf2 = 2.0.pow(ceil(log2(inputSec)).toInt())/step
+        val powerOf2 = 2.0.pow(ceil(log2(inputSec)).toInt()) / step
         val roundedSec = ceil(inputSec / powerOf2) * powerOf2
         return (roundedSec * 1000).toLong()
     }

@@ -3,6 +3,8 @@ package com.zamna.kotask
 import ExpDelayQuantizer
 import IDelayQuantizer
 import com.rabbitmq.client.*
+import com.rabbitmq.client.impl.MicrometerMetricsCollector
+import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 
@@ -10,6 +12,7 @@ const val HEADERS_PREFIX = "kot-"
 
 class RabbitMQBroker(
     uri: String = "amqp://guest:guest@localhost",
+    metricsPrefix: String = "",
     val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer()
 ) : IMessageBroker {
     private val createdQueues = mutableSetOf<QueueName>()
@@ -24,8 +27,16 @@ class RabbitMQBroker(
 
     private var logger = LoggerFactory.getLogger(this::class.java)
 
+    private var metricsCollector = MicrometerMetricsCollector(
+        LoggingMeterRegistry { s -> logger.info(s) },
+        metricsPrefix
+    )
+
     init {
         val factory = ConnectionFactory()
+        if (metricsPrefix != "") {
+            factory.metricsCollector = metricsCollector
+        }
         factory.setUri(uri)
         connection = factory.newConnection()
         channel = connection.createChannel()

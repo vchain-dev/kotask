@@ -64,6 +64,10 @@ dependencies {
         isTransitive = true
     }
 
+
+    implementation("io.micrometer:micrometer-core:1.11.5")
+
+
     // postgresql (should be moved out of main bundle)
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-dao:$exposedVersion")

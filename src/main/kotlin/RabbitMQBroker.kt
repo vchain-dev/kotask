@@ -38,6 +38,7 @@ class RabbitMQBroker(
             factory.metricsCollector = metricsCollector
         }
         factory.setUri(uri)
+        factory.isAutomaticRecoveryEnabled = true
         connection = factory.newConnection()
         channel = connection.createChannel()
 

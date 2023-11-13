@@ -15,6 +15,7 @@ import org.jetbrains.exposed.sql.javatime.timestamp
 
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.hours
 
 object Schedule : Table() {
     val workloadName: Column<String> = varchar("workload_id", 512)
@@ -34,6 +35,9 @@ class PostgresqlScheduleTracker(
     init {
         transaction(db.connection) {
             SchemaUtils.createMissingTablesAndColumns(Schedule)
+            Schedule.deleteWhere {
+                this.scheduledAt.lessEq((Clock.System.now() - 2.hours).toJavaInstant())
+            }
         }
     }
 

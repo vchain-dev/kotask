@@ -29,4 +29,4 @@ class Cron(
 }
 
 
-val onceAtMidnight = Cron("0 0 * * *")
+val everyHour = Cron("0 * * * *")

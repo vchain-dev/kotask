@@ -8,7 +8,6 @@ import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import cleanScheduleWorker
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
@@ -72,7 +71,7 @@ class TaskManager(
         tasksSchedulers.getOrPut(cleanScheduleWorkloadName) {
             schedulersScope.launch {
                 while (true) {
-                    onceAtMidnight
+                    everyHour
                         .getNextCalls()
                         .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
                         .forEach { date ->

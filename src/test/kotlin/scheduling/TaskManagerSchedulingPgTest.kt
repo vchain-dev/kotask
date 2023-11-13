@@ -5,7 +5,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import plugins.scheduler.pg.PostgresqlScheduleTracker
 
 
-class SchedulingPgTest: FunSpec({
+class TaskManagerSchedulingPgTest: FunSpec({
     val pg = PostgreSQLContainer("postgres:14.1")
         .withDatabaseName("somedatabasename")
         .withUsername("postgres")
@@ -25,11 +25,6 @@ class SchedulingPgTest: FunSpec({
         taskManager.close()
     }
 
-    include("Postgresql.", schedulingTest(taskManager))
+    include("Postgresql.", taskManagerSchedulingTest(taskManager))
 })
 
-class SchedulingInMemoryTest: FunSpec({
-    val taskManager = TaskManager(LocalBroker())
-
-    include("In memory.", schedulingTest(taskManager))
-})

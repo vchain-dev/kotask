@@ -25,7 +25,7 @@ class Cron(
         val javaInstant = it.toJavaInstant().atZone(ZoneOffset.systemDefault())
         val nexExecutionJavaZonedDt = executionTime.nextExecution(javaInstant).get()
         nexExecutionJavaZonedDt.toInstant().toKotlinInstant()
-    }
+    }.drop(1) // drop seed
 }
 
 

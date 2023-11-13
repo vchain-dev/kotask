@@ -89,6 +89,7 @@ class TaskManager(
 
         tasksSchedulers.getOrPut(workloadName) {
             schedulersScope.launch {
+                logger.info("Launching scheduler for $workloadName")
                 while (true) {
                     schedulePolicy
                         .getNextCalls()
@@ -105,6 +106,8 @@ class TaskManager(
             logger.trace("Scheduling $workloadName for $scheduleAt stopped. Record already exists.")
             return
         }
+
+        logger.debug("Scheduling $workloadName for $scheduleAt. Success.")
 
         val call = taskCallFactory(
             CallParams(

@@ -54,7 +54,10 @@ class Task<T: Any> @PublishedApi internal constructor(
         manager.enqueueTaskCall(this, inputStr, params)
         logger.cDebug(
             "Call task $name later with input $inputStr",
-            "action" to TaskEvents.MESSAGE_SENT
+            context = arrayOf(
+                "action" to TaskEvents.MESSAGE_SENT,
+                "delayMs" to params.delay.toString()
+            )
         )
     }
 

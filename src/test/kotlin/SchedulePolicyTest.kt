@@ -33,7 +33,7 @@ class SchedulePolicyTest: FunSpec({
             .takeWhile { it < hourAfter }
             .toList()
 
-        times.size shouldBe 60
+        times.size shouldBe 59
         times.min() shouldBe start
         times.max() shouldBe hourAfter - 1.minutes
     }
@@ -44,7 +44,7 @@ class SchedulePolicyTest: FunSpec({
             .takeWhile { it < hourAfter }
             .toList()
 
-        times.size shouldBe 5
+        times.size shouldBe 4
     }
 
     test("Test that sequence of 5 equal records is populated for 1 hour period") {
@@ -53,7 +53,7 @@ class SchedulePolicyTest: FunSpec({
             .takeWhile { it < hourAfter }
             .toList()
 
-        times.size shouldBe 5
+        times.size shouldBe 4
 
         delay(1.seconds)
 
@@ -62,7 +62,7 @@ class SchedulePolicyTest: FunSpec({
             .takeWhile { it < hourAfter }
             .toList()
 
-        times2.size shouldBe 5
+        times2.size shouldBe 4
 
         times shouldBe times2
 

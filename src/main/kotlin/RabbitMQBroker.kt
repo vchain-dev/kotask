@@ -6,18 +6,21 @@ import com.rabbitmq.client.*
 import com.rabbitmq.client.impl.MicrometerMetricsCollector
 import com.zamna.kotask.eventLogging.cDebug
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration.Companion.minutes
 
 const val HEADERS_PREFIX = "kot-"
 
 class RabbitMQBroker(
     uri: String = "amqp://guest:guest@localhost",
     metricsPrefix: String? = null,
-    val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer()
+    val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer(),
+    schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) : IMessageBroker {
     private val createdQueues = mutableSetOf<QueueName>()
     private val createdDelayQueues = mutableSetOf<Long>()
+    private var queues: RabbitMQQueues
     var connection: Connection
     var channel: Channel
 
@@ -44,19 +47,31 @@ class RabbitMQBroker(
         factory.isAutomaticRecoveryEnabled = true
         connection = factory.newConnection()
         channel = connection.createChannel()
+        queues = RabbitMQQueues(channel)
 
         // Create DELAYED exchange
         channel.exchangeDeclare(delayExchangeName, "headers", true)
 
+        schedulersScope.launch {
+            // Queue metrics
+            while (true) {
+                for (d in queues.declarations) {
+                    queues.declare(d)?.let {
+                        logger.cDebug("Queue ${d.queueName}" +
+                                " consumerCount=${it.consumerCount} " +
+                                " messageCount=${it.messageCount}")
+                    }
+                }
+                delay(5.minutes)
+            }
+        }
     }
 
-    // queue builder TODO:
 
     private fun assertQueue(queueName: QueueName) {
         if (queueName !in createdQueues) {
             logger.cDebug("Declare queue $queueName")
-            val queueDeclare = channel.queueDeclare(queueName, true, false, false, null)
-            logger.cDebug("Queue $queueName consumerCount=${queueDeclare.consumerCount} messageCount=${queueDeclare.messageCount}")
+            queues.declare(queueName, true, false, false, null)
             createdQueues.add(queueName)
         }
     }
@@ -85,7 +100,6 @@ class RabbitMQBroker(
         } else defaultExchangeName
 
         channel.basicPublish(exchangeName, queueName, props, message.body)
-        // TODO: Log publish
     }
 
     override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
@@ -131,7 +145,7 @@ class RabbitMQBroker(
         if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
             logger.debug("Create delayed queue for $delayQuantized ms")
             val queueName = "$delayQueueNamePrefix$delayQuantized"
-            channel.queueDeclare(
+            queues.declare(
                 queueName, true, false, false,
                 mapOf("x-message-ttl" to delayQuantized, "x-dead-letter-exchange" to defaultExchangeName)
             )
@@ -148,5 +162,36 @@ class RabbitMQBroker(
 class RabbitMQConsumer(val consumer: DefaultConsumer) : IConsumer {
     override fun stop() {
         consumer.channel.basicCancel(consumer.consumerTag)
+    }
+}
+
+
+class RabbitMQQueues(
+    var channel: Channel
+) {
+    data class RabbitMQQueueDeclaration(
+        val queueName: String,
+        val durable: Boolean,
+        val exclusive: Boolean,
+        val autoDelete: Boolean,
+        val arguments: Map<String, Any>?
+    )
+
+    val declarations = mutableSetOf<RabbitMQQueueDeclaration>()
+
+    fun declare(
+        queueName: String,
+        durable: Boolean,
+        exclusive: Boolean,
+        autoDelete: Boolean,
+        arguments: Map<String, Any>?
+    ) {
+        val declaration = RabbitMQQueueDeclaration(queueName, durable, exclusive, autoDelete, arguments)
+        declarations.add(declaration)
+        this.declare(declaration)
+    }
+
+    fun declare(d: RabbitMQQueueDeclaration): AMQP.Queue.DeclareOk? {
+        return channel.queueDeclare(d.queueName, d.durable, d.exclusive, d.autoDelete, d.arguments)
     }
 }

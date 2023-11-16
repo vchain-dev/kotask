@@ -4,6 +4,7 @@ import ExpDelayQuantizer
 import IDelayQuantizer
 import com.rabbitmq.client.*
 import com.rabbitmq.client.impl.MicrometerMetricsCollector
+import com.zamna.kotask.eventLogging.cDebug
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
@@ -21,6 +22,8 @@ class RabbitMQBroker(
     var channel: Channel
 
     val delayExchangeName = "kotask-delayed-exchange"
+    val defaultExchangeName = ""
+
     val delayQueueNamePrefix = "kotask-delayed-"
     val delayHeaderName = "delay"
     val delayQuantizedHeaderName = "delay-quantized"
@@ -46,18 +49,18 @@ class RabbitMQBroker(
         channel.exchangeDeclare(delayExchangeName, "headers", true)
     }
 
-    private fun assertQueue(queueName: QueueName)  {
+    private fun assertQueue(queueName: QueueName) {
         if (queueName !in createdQueues) {
-            logger.debug("Declare queue $queueName")
+            logger.cDebug("Declare queue $queueName")
             channel.queueDeclare(queueName, true, false, false, null)
             createdQueues.add(queueName)
         }
 
     }
-    
+
     override fun submitMessage(queueName: QueueName, message: Message) {
         assertQueue(queueName)
-        
+
         val quantizedDelayMs = quantizeDelayAndAssertDelayedQueue(message.delayMs)
         val rabbitHeaders = message.headers
             .mapKeys { (k, _) -> "$HEADERS_PREFIX$k" }
@@ -68,7 +71,16 @@ class RabbitMQBroker(
             .headers(rabbitHeaders)
             .build()
 
-        val exchangeName = if (quantizedDelayMs > 0) delayExchangeName else ""
+        val exchangeName = if (quantizedDelayMs > 0) {
+            logger.cDebug(
+                "Publish to $delayExchangeName" +
+                        "  queue=$queueName" +
+                        "  quantizedDelay=$quantizedDelayMs" +
+                        "  delay=${props.headers[delayHeaderName]}"
+            )
+            delayExchangeName
+        } else defaultExchangeName
+
         channel.basicPublish(exchangeName, queueName, props, message.body)
         // TODO: Log publish
     }
@@ -119,7 +131,7 @@ class RabbitMQBroker(
             val queueName = "$delayQueueNamePrefix$delayQuantized"
             channel.queueDeclare(
                 queueName, true, false, false,
-                mapOf("x-message-ttl" to delayQuantized, "x-dead-letter-exchange" to "")
+                mapOf("x-message-ttl" to delayQuantized, "x-dead-letter-exchange" to defaultExchangeName)
             )
             channel.queueBind(
                 queueName, delayExchangeName, queueName,

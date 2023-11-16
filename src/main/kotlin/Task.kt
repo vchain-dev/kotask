@@ -52,11 +52,11 @@ class Task<T: Any> @PublishedApi internal constructor(
     fun callLater(input: T, params: CallParams = CallParams(), manager: TaskManager = TaskManager.getDefaultInstance()) {
         val inputStr = Json.encodeToString(inputSerializer, input)
         manager.enqueueTaskCall(this, inputStr, params)
-        logger.cDebug(
+        logger.cInfo(
             "Call task $name later with input $inputStr",
             context = arrayOf(
                 "action" to TaskEvents.MESSAGE_SENT,
-                "delayMs" to params.delay.toString()
+                "delayMs" to params.delay.toString(),
             )
         )
     }
@@ -90,7 +90,7 @@ class Task<T: Any> @PublishedApi internal constructor(
             restorePrevious = true
         ) {
             logger.cInfo(
-                "Start task with name=$name callId=${params.callId}",
+                "Start task with name=$name callId=${params.callId} with $inputStr",
                 AddContextParams.action(TaskEvents.MESSAGE_RECEIVED)
             )
 
@@ -98,41 +98,41 @@ class Task<T: Any> @PublishedApi internal constructor(
                 handler(ctx, input)
 
                 logger.cInfo(
-                    "Complete task $name with callId=${params.callId}",
+                    "Complete task $name with callId=${params.callId} with $inputStr",
                     AddContextParams.action(TaskEvents.MESSAGE_COMPLETE)
                 )
             } catch (e: RepeatTask) {
                 logger.cInfo(
-                    "Received RepeatTask from task $name with callId=${params.callId}",
+                    "Received RepeatTask from task $name with callId=${params.callId} with $inputStr",
                     AddContextParams.action(TaskEvents.MESSAGE_SUBMIT_RETRY)
                 )
                 manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
             } catch (e: ForceRetry) {
                 logger.cInfo(
-                    "Received ForceRetry from task $name with callId=${params.callId}",
+                    "Received ForceRetry from task $name with callId=${params.callId} with $inputStr",
                     AddContextParams.action(TaskEvents.MESSAGE_SUBMIT_RETRY)
                 )
                 manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
             } catch (e: FailNoRetry) {
                 logger.cInfo(
-                    "Received NoRetry from task $name with callId=${params.callId}",
+                    "Received NoRetry from task $name with callId=${params.callId} with $inputStr",
                     AddContextParams.action(TaskEvents.MESSAGE_FAIL_NO_RETRY)
                 )
             } catch (e: Throwable) {
                 logger.cError(
-                    "Task $name failed with callId=${params.callId}", e,
+                    "Task $name failed with callId=${params.callId} with $inputStr", e,
                     AddContextParams.action(TaskEvents.MESSAGE_FAIL)
                 )
 
                 if (getRetryPolicy(manager).shouldRetry(params)) {
                     logger.cInfo(
-                        "Retry task $name with callId=${params.callId}",
+                        "Retry task $name with callId=${params.callId} with $inputStr",
                         AddContextParams.action(TaskEvents.MESSAGE_FAIL_RETRY)
                     )
                     manager.enqueueTaskCall(this, inputStr, getRetryPolicy(manager).getNextRetryCallParams(params))
                 } else {
                     logger.cError(
-                        "Task $name failed with callId=${params.callId} and no more retries left", e,
+                        "Task $name failed with callId=${params.callId} with $inputStr and no more retries left", e,
                         AddContextParams.action(TaskEvents.MESSAGE_FAIL_NO_RETRY)
                     )
                 }

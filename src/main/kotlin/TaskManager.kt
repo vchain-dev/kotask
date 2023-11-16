@@ -7,6 +7,8 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import cleanScheduleWorker
+import com.zamna.kotask.eventLogging.cDebug
+import com.zamna.kotask.eventLogging.cInfo
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -31,14 +33,13 @@ class TaskManager(
     fun knownWorkerNames() = knownTasks.keys.toSet()
 
     fun enqueueTaskCall(task: Task<*>, inputStr: String, params: CallParams) {
-        logger.debug("Enqueue task ${task.name}")
         checkTaskUniq(task)
         val call = createTaskCall(task, inputStr, params)
         enqueueTaskCall(call)
     }
 
     fun enqueueTaskCall(call: TaskCall) {
-        logger.debug("Enqueue task call for ${call.taskName}")
+        logger.cDebug("Enqueue task call for ${call.taskName} with ${call.message.body} and ${call.message.delayMs}")
         broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
 
         if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
@@ -53,7 +54,7 @@ class TaskManager(
     }
 
     private fun startWorker(task: Task<*>) {
-        logger.info("Starting worker for task ${task.name}")
+        logger.cInfo("Starting worker for task ${task.name}")
         checkTaskUniq(task)
         tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
             broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->

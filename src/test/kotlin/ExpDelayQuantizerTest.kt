@@ -31,9 +31,4 @@ class ExpDelayQuantizerTest : FunSpec({
         }
     }
 
-    test("Schedule message to 16 hours ahead") {
-        val z = quantifier.quantize(16.hours.inWholeMilliseconds)
-        print(z)
-    }
-
 })

@@ -47,15 +47,18 @@ class RabbitMQBroker(
 
         // Create DELAYED exchange
         channel.exchangeDeclare(delayExchangeName, "headers", true)
+
     }
+
+    // queue builder TODO:
 
     private fun assertQueue(queueName: QueueName) {
         if (queueName !in createdQueues) {
             logger.cDebug("Declare queue $queueName")
-            channel.queueDeclare(queueName, true, false, false, null)
+            val queueDeclare = channel.queueDeclare(queueName, true, false, false, null)
+            logger.cDebug("Queue $queueName consumerCount=${queueDeclare.consumerCount} messageCount=${queueDeclare.messageCount}")
             createdQueues.add(queueName)
         }
-
     }
 
     override fun submitMessage(queueName: QueueName, message: Message) {
@@ -114,7 +117,6 @@ class RabbitMQBroker(
                 }
             }
         }
-
         cChannel.basicConsume(queueName, false, c)
         return RabbitMQConsumer(c)
     }

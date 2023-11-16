@@ -55,6 +55,7 @@ class Task<T: Any> @PublishedApi internal constructor(
         logger.cInfo(
             "Call task $name later with input $inputStr",
             context = arrayOf(
+                "callId" to params.callId,
                 "action" to TaskEvents.MESSAGE_SENT,
                 "delayMs" to params.delay.toString(),
             )

@@ -5,8 +5,8 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
+import mu.KotlinLogging
 import mu.withLoggingContext
-import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.time.Duration
 
@@ -33,7 +33,7 @@ class Task<T: Any> @PublishedApi internal constructor(
     val retry: IRetryPolicy? = null,
     val handler: TaskHandler<T>
 ) {
-    private var logger = LoggerFactory.getLogger(this::class.java)
+    private var logger = KotlinLogging.logger {  }
 
     companion object {
         inline fun <reified T : Any> create(

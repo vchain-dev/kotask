@@ -6,8 +6,8 @@ import io.kotest.core.spec.style.funSpec
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.shouldBe
 import kotlinx.datetime.Clock
+import mu.KotlinLogging
 import org.jetbrains.exposed.sql.selectAll
-import org.slf4j.LoggerFactory
 import plugins.scheduler.pg.Schedule
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
@@ -28,7 +28,7 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
         }.asSequence()
     }
 
-    val logger = LoggerFactory.getLogger(this::class.java)
+    val logger = KotlinLogging.logger {  }
 
     val schedulingNoInput = Task.create("testing-scheduling-noinput") {}
 
@@ -51,9 +51,6 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
                 it.isExecuted() shouldBe true
                 it.executionsCount() shouldBe 10
             }
-
-            Schedule.selectAll().count()
-
         }
     }
 

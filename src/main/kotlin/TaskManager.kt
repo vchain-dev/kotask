@@ -5,10 +5,10 @@ import kotlinx.coroutines.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
-import org.slf4j.LoggerFactory
 import cleanScheduleWorker
 import com.zamna.kotask.eventLogging.cDebug
 import com.zamna.kotask.eventLogging.cInfo
+import mu.KotlinLogging
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -27,7 +27,7 @@ class TaskManager(
     // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
     private val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
-    private var logger = LoggerFactory.getLogger(this::class.java)
+    private var logger = KotlinLogging.logger {  }
 
     fun knownSchedulerNames() = tasksSchedulers.keys.toSet()
     fun knownWorkerNames() = knownTasks.keys.toSet()

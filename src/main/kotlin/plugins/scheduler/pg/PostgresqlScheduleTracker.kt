@@ -1,20 +1,16 @@
 package plugins.scheduler.pg
 
+import com.zamna.kotask.IScheduleTracker
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
-
-import com.zamna.kotask.IScheduleTracker
-import kotlinx.datetime.*
-import org.jetbrains.exposed.exceptions.ExposedSQLException
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
-import org.jetbrains.exposed.sql.javatime.CurrentDateTime
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
-import org.jetbrains.exposed.sql.javatime.datetime
 import org.jetbrains.exposed.sql.javatime.timestamp
-
 import org.jetbrains.exposed.sql.transactions.transaction
-import org.slf4j.LoggerFactory
 import kotlin.time.Duration.Companion.hours
 
 object Schedule : Table() {

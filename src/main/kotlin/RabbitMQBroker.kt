@@ -7,7 +7,7 @@ import com.rabbitmq.client.impl.MicrometerMetricsCollector
 import com.zamna.kotask.eventLogging.cDebug
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.*
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 import kotlin.time.Duration.Companion.minutes
 
 const val HEADERS_PREFIX = "kot-"
@@ -31,7 +31,7 @@ class RabbitMQBroker(
     val delayHeaderName = "delay"
     val delayQuantizedHeaderName = "delay-quantized"
 
-    private var logger = LoggerFactory.getLogger(this::class.java)
+    private var logger = KotlinLogging.logger {  }
 
     private var metricsCollector = MicrometerMetricsCollector(
         LoggingMeterRegistry { s -> logger.info(s) },

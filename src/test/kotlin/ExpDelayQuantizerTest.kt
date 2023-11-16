@@ -1,6 +1,5 @@
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import kotlin.time.Duration.Companion.hours
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 

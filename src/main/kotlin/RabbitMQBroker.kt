@@ -58,7 +58,7 @@ class RabbitMQBroker(
             while (true) {
                 for (d in queues.declarations) {
                     queues.declare(d)?.let {
-                        logger.atDebug {
+                        logger.atInfo {
                             message = "Queue ${d.queueName} metrics"
                             payload = mapOf(
                                 "queueName" to d.queueName,

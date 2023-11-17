@@ -1,14 +1,12 @@
 import com.zamna.kotask.IRepeatingSchedulePolicy
 import com.zamna.kotask.Task
 import com.zamna.kotask.TaskManager
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.kotest.common.ExperimentalKotest
 import io.kotest.core.spec.style.funSpec
 import io.kotest.framework.concurrency.eventually
 import io.kotest.matchers.shouldBe
 import kotlinx.datetime.Clock
-import org.jetbrains.exposed.sql.selectAll
-import org.slf4j.LoggerFactory
-import plugins.scheduler.pg.Schedule
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -28,17 +26,13 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
         }.asSequence()
     }
 
-    val logger = LoggerFactory.getLogger(this::class.java)
-
     val schedulingNoInput = Task.create("testing-scheduling-noinput") {}
 
     val schedulingTask1 = Task.create("testing-scheduling-task1") { ctx, input: TaskTrackExecutionWithContextCountInput ->
-        logger.info("Executed")
         input.markExecuted(ctx)
     }
 
     val schedulingTask2 = Task.create("testing-scheduling-task2") { ctx, input: TaskTrackExecutionWithContextCountInput ->
-        logger.info("Executed")
         input.markExecuted(ctx)
     }
 
@@ -51,9 +45,6 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
                 it.isExecuted() shouldBe true
                 it.executionsCount() shouldBe 10
             }
-
-            Schedule.selectAll().count()
-
         }
     }
 

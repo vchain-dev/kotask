@@ -5,8 +5,8 @@ import kotlinx.coroutines.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
-import org.slf4j.LoggerFactory
 import cleanScheduleWorker
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -25,20 +25,26 @@ class TaskManager(
     // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
     private val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
-    private var logger = LoggerFactory.getLogger(this::class.java)
+    private var logger = KotlinLogging.logger {  }
 
     fun knownSchedulerNames() = tasksSchedulers.keys.toSet()
     fun knownWorkerNames() = knownTasks.keys.toSet()
 
     fun enqueueTaskCall(task: Task<*>, inputStr: String, params: CallParams) {
-        logger.debug("Enqueue task ${task.name}")
         checkTaskUniq(task)
         val call = createTaskCall(task, inputStr, params)
         enqueueTaskCall(call)
     }
 
     fun enqueueTaskCall(call: TaskCall) {
-        logger.debug("Enqueue task call for ${call.taskName}")
+        logger.atDebug {
+            message = "Enqueue task call"
+            payload = mapOf(
+                "callId" to (call.message.headers["call-id"] ?: "unknown"),
+                "taskName" to call.taskName,
+                "delayMs" to call.message.delayMs
+            )
+        }
         broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
 
         if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
@@ -53,7 +59,12 @@ class TaskManager(
     }
 
     private fun startWorker(task: Task<*>) {
-        logger.info("Starting worker for task ${task.name}")
+        logger.atInfo {
+            message = "Starting worker for task ${task.name}"
+            payload = mapOf(
+                "taskName" to task.name
+            )
+        }
         checkTaskUniq(task)
         tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
             broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
@@ -88,7 +99,12 @@ class TaskManager(
 
         tasksSchedulers.getOrPut(workloadName) {
             schedulersScope.launch {
-                logger.info("Launching scheduler for $workloadName")
+                logger.atInfo {
+                    message = "Launching scheduler for $workloadName"
+                    payload = mapOf(
+                        "taskName" to workloadName
+                    )
+                }
                 while (true) {
                     schedulePolicy
                         .getNextCalls()
@@ -101,25 +117,44 @@ class TaskManager(
     }
 
     private fun <T: Any> submitScheduleMessage(workloadName: String, scheduleAt: Instant, taskCallFactory: TaskCallFactory<T>) {
-        if (!scheduler.recordScheduling(workloadName, scheduleAt)) {
-            logger.trace("Scheduling $workloadName for $scheduleAt stopped. Record already exists.")
-            return
-        }
-
-        logger.debug("Scheduling $workloadName for $scheduleAt. Success.")
-
         val call = taskCallFactory(
             CallParams(
                 callId = "${workloadName}-${scheduleAt}",
                 delay = maxOf(scheduleAt - Clock.System.now(), Duration.ZERO)
             )
         )
+
+        if (!scheduler.recordScheduling(workloadName, scheduleAt)) {
+            logger.atTrace {
+                message = "Scheduling $workloadName. Record already exists."
+                payload = mapOf(
+                    "callId" to (call.message.headers["call-id"] ?: "unknown"),
+                    "attemptNum" to (call.message.headers["attempt-num"] ?: "unknown"),
+                    "taskName" to workloadName,
+                    "scheduleAt" to scheduleAt
+                )
+            }
+            return
+        }
+
+        logger.atDebug {
+            message = "Scheduling $workloadName. Success."
+            payload = mapOf(
+                "callId" to (call.message.headers["call-id"] ?: "unknown"),
+                "attemptNum" to (call.message.headers["attempt-num"] ?: "unknown"),
+                "taskName" to workloadName,
+                "scheduleAt" to scheduleAt
+            )
+        }
+
         enqueueTaskCall(call)
     }
 
     fun startWorkers(vararg tasks: Task<*>) {
         if (broker is LocalBroker) {
-            logger.warn("LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers")
+            logger.atWarn {
+                message = "LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers"
+            }
             return
         }
         tasks.forEach { startWorker(it) }

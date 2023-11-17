@@ -30,12 +30,12 @@ class SchedulePolicyTest: FunSpec({
     test("Test that sequence of 60 records is populated for 1 hour period") {
         val everyMinute = Cron("* * * * *")
         val times = everyMinute.getNextCalls()
-            .takeWhile { it < hourAfter }
+            .takeWhile { it <= hourAfter }
             .toList()
 
-        times.size shouldBe 59
-        times.min() shouldBe start
-        times.max() shouldBe hourAfter - 1.minutes
+        times.size shouldBe 60
+        times.min() shouldBe start + 1.minutes
+        times.max() shouldBe hourAfter
     }
 
     test("Test that sequence of 5 records is populated for 1 hour period") {

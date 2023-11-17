@@ -4,13 +4,14 @@ import ExpDelayQuantizer
 import IDelayQuantizer
 import com.rabbitmq.client.*
 import com.rabbitmq.client.impl.MicrometerMetricsCollector
-import com.zamna.kotask.eventLogging.cDebug
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.*
-import mu.KotlinLogging
 import kotlin.time.Duration.Companion.minutes
 
 const val HEADERS_PREFIX = "kot-"
+
+// todo: need a better way to process headers
 
 class RabbitMQBroker(
     uri: String = "amqp://guest:guest@localhost",
@@ -31,10 +32,10 @@ class RabbitMQBroker(
     val delayHeaderName = "delay"
     val delayQuantizedHeaderName = "delay-quantized"
 
-    private var logger = KotlinLogging.logger {  }
+    private var logger = KotlinLogging.logger { }
 
     private var metricsCollector = MicrometerMetricsCollector(
-        LoggingMeterRegistry { s -> logger.info(s) },
+        LoggingMeterRegistry { s -> logger.atInfo { message = s } },
         metricsPrefix
     )
 
@@ -57,9 +58,14 @@ class RabbitMQBroker(
             while (true) {
                 for (d in queues.declarations) {
                     queues.declare(d)?.let {
-                        logger.cDebug("Queue ${d.queueName}" +
-                                " consumerCount=${it.consumerCount} " +
-                                " messageCount=${it.messageCount}")
+                        logger.atDebug {
+                            message = "Queue ${d.queueName} metrics"
+                            payload = mapOf(
+                                "queueName" to d.queueName,
+                                "consumerCount" to it.consumerCount,
+                                "messageCount" to it.messageCount
+                            )
+                        }
                     }
                 }
                 delay(5.minutes)
@@ -70,7 +76,12 @@ class RabbitMQBroker(
 
     private fun assertQueue(queueName: QueueName) {
         if (queueName !in createdQueues) {
-            logger.cDebug("Declare queue $queueName")
+            logger.atDebug {
+                message = "Declare queue $queueName"
+                payload = mapOf(
+                    "queueName" to queueName
+                )
+            }
             queues.declare(queueName, true, false, false, null)
             createdQueues.add(queueName)
         }
@@ -90,12 +101,15 @@ class RabbitMQBroker(
             .build()
 
         val exchangeName = if (quantizedDelayMs > 0) {
-            logger.cDebug(
-                "Publish to $delayExchangeName" +
-                        "  queue=$queueName" +
-                        "  quantizedDelay=$quantizedDelayMs" +
-                        "  delay=${props.headers[delayHeaderName]}"
-            )
+            logger.atDebug {
+                this.message = "Publish to delay exchange"
+                payload = mapOf(
+                    "callId" to (message.headers["call-id"] ?: "unknown"),
+                    "queueName" to queueName,
+                    "quantizedDelayMs" to quantizedDelayMs,
+                    "delay" to (props.headers[delayHeaderName] ?: "unknown")
+                )
+            }
             delayExchangeName
         } else defaultExchangeName
 
@@ -143,8 +157,14 @@ class RabbitMQBroker(
         val delayQuantized = delayQuantizer.quantize(delayMs)
 
         if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
-            logger.debug("Create delayed queue for $delayQuantized ms")
             val queueName = "$delayQueueNamePrefix$delayQuantized"
+            logger.atDebug {
+                message = "Create delayed queue"
+                payload = mapOf(
+                    "queueName" to queueName,
+                    "delayQuantized" to delayQuantized,
+                )
+            }
             queues.declare(
                 queueName, true, false, false,
                 mapOf("x-message-ttl" to delayQuantized, "x-dead-letter-exchange" to defaultExchangeName)

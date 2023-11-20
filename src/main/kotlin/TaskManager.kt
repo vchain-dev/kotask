@@ -41,16 +41,12 @@ class TaskManager(
     }
 
     fun enqueueTaskCall(call: TaskCall) {
-        val logCtx = mapOf(
+        withLogCtx(
             "callId" to (call.message.headers["call-id"] ?: "unknown"),
             "taskName" to call.taskName,
             "delayMs" to call.message.delayMs.toString()
-        )
-        withLogCtx(logCtx) {
-            logger.atDebug {
-                message = "Enqueue task call"
-                payload = logCtx
-            }
+        ) {
+            logger.debug { "Enqueue task call" }
             broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
 
             if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
@@ -66,14 +62,8 @@ class TaskManager(
     }
 
     private fun startWorker(task: Task<*>) {
-        val logCtx = mapOf(
-            "taskName" to task.name
-        )
-        withLogCtx(logCtx) {
-            logger.atInfo {
-                message = "Starting worker for task ${task.name}"
-                payload = logCtx
-            }
+        withLogCtx("taskName" to task.name) {
+            logger.info { "Starting worker for task ${task.name}" }
             checkTaskUniq(task)
             tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
                 broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
@@ -92,42 +82,53 @@ class TaskManager(
         tasksSchedulers.getOrPut(cleanScheduleWorkloadName) {
             scope.launch(MDCContext()) {
                 while (true) {
-                    everyHour
-                        .getNextCalls()
-                        .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
-                        .forEach { date ->
-                            submitScheduleMessage(
-                                cleanScheduleWorkloadName,
-                                date,
-                                cleanScheduleWorker.prepareInput()
-                            )
+                    try {
+                        everyHour
+                            .getNextCalls()
+                            .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
+                            .forEach { date ->
+                                submitScheduleMessage(
+                                    cleanScheduleWorkloadName,
+                                    date,
+                                    cleanScheduleWorker.prepareInput()
+                                )
+                            }
+                    } catch (e: Exception) {
+                        if (e is CancellationException) {
+                            // catching CancellationException leads to dead loop
+                            throw e
                         }
+                        logger.error(e) { "Error in scheduler for $cleanScheduleWorkloadName" }
+                    }
                     delay(Settings.scheduleDelayDuration)
                 }
             }
         }
 
-        val logCtx = mapOf(
-            "taskName" to workloadName
-        )
-        withLogCtx(logCtx) {
+        withLogCtx("taskName" to workloadName) {
             tasksSchedulers.getOrPut(workloadName) {
                 scope.launch(MDCContext()) {
-                    logger.atInfo {
-                        message = "Launching scheduler for $workloadName"
-                        payload = logCtx
-                    }
+                    logger.info { "Launching scheduler for $workloadName" }
                     while (true) {
-                        schedulePolicy
-                            .getNextCalls()
-                            .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
-                            .forEach { date ->
-                                submitScheduleMessage(
-                                    workloadName,
-                                    date,
-                                    taskCallFactory
-                                )
+                        try {
+                            schedulePolicy
+                                .getNextCalls()
+                                .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
+                                .forEach { date ->
+                                    submitScheduleMessage(
+                                        workloadName,
+                                        date,
+                                        taskCallFactory
+                                    )
+                                }
+                            delay(Settings.scheduleDelayDuration)
+                        } catch (e: Exception) {
+                            if (e is CancellationException) {
+                                // catching CancellationException leads to dead loop
+                                throw e
                             }
+                            logger.error(e) { "Error in scheduler for $workloadName" }
+                        }
                         delay(Settings.scheduleDelayDuration)
                     }
                 }
@@ -143,25 +144,18 @@ class TaskManager(
             )
         )
 
-        val logCtx = mapOf(
+        withLogCtx(
             "callId" to (call.message.headers["call-id"] ?: "unknown"),
             "attemptNum" to (call.message.headers["attempt-num"] ?: "unknown"),
             "taskName" to workloadName,
             "scheduleAt" to scheduleAt.toString()
-        )
-        withLogCtx(logCtx) {
+        ) {
             if (!scheduler.recordScheduling(workloadName, scheduleAt)) {
-                logger.atTrace {
-                    message = "Scheduling $workloadName. Record already exists."
-                    payload = logCtx
-                }
+                logger.trace { "Scheduling $workloadName. Record already exists." }
                 return
             }
 
-            logger.atDebug {
-                message = "Scheduling $workloadName. Success."
-                payload = logCtx
-            }
+            logger.debug { "Scheduling $workloadName. Success." }
 
             enqueueTaskCall(call)
         }
@@ -169,9 +163,7 @@ class TaskManager(
 
     fun startWorkers(vararg tasks: Task<*>) {
         if (broker is LocalBroker) {
-            logger.atWarn {
-                message = "LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers"
-            }
+            logger.warn { "LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers" }
             return
         }
         tasks.forEach { startWorker(it) }

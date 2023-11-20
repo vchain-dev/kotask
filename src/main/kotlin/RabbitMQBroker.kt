@@ -39,7 +39,7 @@ class RabbitMQBroker(
     private val scope = schedulersScope ?: loggingScope(logger)
 
     private var metricsCollector = MicrometerMetricsCollector(
-        LoggingMeterRegistry { s -> logger.atInfo { message = s } },
+        LoggingMeterRegistry { s -> logger.info { s } },
         metricsPrefix
     )
 
@@ -62,16 +62,12 @@ class RabbitMQBroker(
             while (true) {
                 for (d in queues.declarations) {
                     queues.declare(d)?.let {
-                        val logCtx = mapOf(
+                        withLogCtx(
                             "queueName" to d.queueName,
                             "consumerCount" to it.consumerCount.toString(),
                             "messageCount" to it.messageCount.toString(),
-                        )
-                        withLogCtx(logCtx) {
-                            logger.atInfo {
-                                message = "Queue ${d.queueName} metrics"
-                                payload = logCtx
-                            }
+                        ) {
+                            logger.info { "Queue ${d.queueName} metrics" }
                         }
                     }
                 }
@@ -84,12 +80,7 @@ class RabbitMQBroker(
     private fun assertQueue(queueName: QueueName) {
         if (queueName !in createdQueues) {
             withLogCtx("queueName" to queueName) {
-                logger.atDebug {
-                    message = "Declare queue $queueName"
-                    payload = mapOf(
-                        "queueName" to queueName
-                    )
-                }
+                logger.debug { "Declare queue $queueName" }
                 queues.declare(queueName, true, false, false, null)
                 createdQueues.add(queueName)
             }
@@ -109,17 +100,13 @@ class RabbitMQBroker(
             .headers(rabbitHeaders)
             .build()
 
-        val logCtx = mapOf(
+        withLogCtx(
             "callId" to (message.headers["call-id"] ?: "unknown"),
             "queueName" to queueName,
             "quantizedDelayMs" to quantizedDelayMs.toString(),
             "delay" to (props.headers[delayHeaderName]?.toString() ?: "unknown")
-        )
-        withLogCtx(logCtx) {
-            logger.atDebug {
-                this.message = "Publish to delay exchange"
-                payload = logCtx
-            }
+        ) {
+            logger.debug { "Publish to delay exchange" }
 
             val exchangeName = if (quantizedDelayMs > 0) {
                 delayExchangeName
@@ -168,21 +155,19 @@ class RabbitMQBroker(
 
     fun quantizeDelayAndAssertDelayedQueue(delayMs: Long): Long {
         val delayQuantized = delayQuantizer.quantize(delayMs)
-
-        if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
-            val queueName = "$delayQueueNamePrefix$delayQuantized"
-            val logCtx = mapOf(
-                "queueName" to queueName,
-                "delayQuantized" to delayQuantized,
-            )
-            withLogCtx {
-                logger.atDebug {
-                    message = "Create delayed queue"
-                    payload = logCtx
-                }
+        val queueName = "$delayQueueNamePrefix$delayQuantized"
+        withLogCtx(
+            "queueName" to queueName,
+            "delayQuantized" to delayQuantized.toString(),
+        ) {
+            if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
+                logger.debug { "Create delayed queue" }
                 queues.declare(
-                    queueName, true, false, false,
-                    mapOf(
+                    queueName,
+                    durable = true,
+                    exclusive = false,
+                    autoDelete = false,
+                    arguments = mapOf(
                         "x-message-ttl" to delayQuantized,
                         "x-dead-letter-exchange" to defaultExchangeName
                     )

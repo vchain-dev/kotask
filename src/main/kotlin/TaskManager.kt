@@ -1,5 +1,6 @@
 package com.zamna.kotask
 
+import MDCContext
 import Settings
 import kotlinx.coroutines.*
 import kotlinx.datetime.Clock
@@ -7,6 +8,8 @@ import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import cleanScheduleWorker
 import io.github.oshai.kotlinlogging.KotlinLogging
+import loggingScope
+import withLogCtx
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
@@ -19,13 +22,14 @@ class TaskManager(
     val scheduler: IScheduleTracker = InMemoryScheduleTracker(),
     private val queueNamePrefix: String = "kotask-",
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
-    private val schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    schedulersScope: CoroutineScope? = null,
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
     private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
     private val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
     private var logger = KotlinLogging.logger {  }
+    private val scope = schedulersScope ?: loggingScope(logger)
 
     fun knownSchedulerNames() = tasksSchedulers.keys.toSet()
     fun knownWorkerNames() = knownTasks.keys.toSet()
@@ -37,19 +41,22 @@ class TaskManager(
     }
 
     fun enqueueTaskCall(call: TaskCall) {
-        logger.atDebug {
-            message = "Enqueue task call"
-            payload = mapOf(
-                "callId" to (call.message.headers["call-id"] ?: "unknown"),
-                "taskName" to call.taskName,
-                "delayMs" to call.message.delayMs
-            )
-        }
-        broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
+        val logCtx = mapOf(
+            "callId" to (call.message.headers["call-id"] ?: "unknown"),
+            "taskName" to call.taskName,
+            "delayMs" to call.message.delayMs.toString()
+        )
+        withLogCtx(logCtx) {
+            logger.atDebug {
+                message = "Enqueue task call"
+                payload = logCtx
+            }
+            broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
 
-        if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
-            // Start worker for local broker
-            startWorker(knownTasks[call.taskName]!!)
+            if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
+                // Start worker for local broker
+                startWorker(knownTasks[call.taskName]!!)
+            }
         }
     }
 
@@ -59,19 +66,22 @@ class TaskManager(
     }
 
     private fun startWorker(task: Task<*>) {
-        logger.atInfo {
-            message = "Starting worker for task ${task.name}"
-            payload = mapOf(
-                "taskName" to task.name
+        val logCtx = mapOf(
+            "taskName" to task.name
+        )
+        withLogCtx(logCtx) {
+            logger.atInfo {
+                message = "Starting worker for task ${task.name}"
+                payload = logCtx
+            }
+            checkTaskUniq(task)
+            tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
+                broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
+                    task.execute(message.body.decodeToString(), messageToParams(message), this)
+                    ack()
+                }
             )
         }
-        checkTaskUniq(task)
-        tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
-            broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
-                task.execute(message.body.decodeToString(), messageToParams(message), this)
-                ack()
-            }
-        )
     }
 
     fun <T: Any> startScheduler(
@@ -80,7 +90,7 @@ class TaskManager(
         // TODO(baitcode): unclear how to test that schedule cleaner starts
         // Clean schedule worker start
         tasksSchedulers.getOrPut(cleanScheduleWorkloadName) {
-            schedulersScope.launch {
+            scope.launch(MDCContext()) {
                 while (true) {
                     everyHour
                         .getNextCalls()
@@ -97,20 +107,29 @@ class TaskManager(
             }
         }
 
-        tasksSchedulers.getOrPut(workloadName) {
-            schedulersScope.launch {
-                logger.atInfo {
-                    message = "Launching scheduler for $workloadName"
-                    payload = mapOf(
-                        "taskName" to workloadName
-                    )
-                }
-                while (true) {
-                    schedulePolicy
-                        .getNextCalls()
-                        .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
-                        .forEach { date -> submitScheduleMessage(workloadName, date, taskCallFactory) }
-                    delay(Settings.scheduleDelayDuration)
+        val logCtx = mapOf(
+            "taskName" to workloadName
+        )
+        withLogCtx(logCtx) {
+            tasksSchedulers.getOrPut(workloadName) {
+                scope.launch(MDCContext()) {
+                    logger.atInfo {
+                        message = "Launching scheduler for $workloadName"
+                        payload = logCtx
+                    }
+                    while (true) {
+                        schedulePolicy
+                            .getNextCalls()
+                            .takeWhile { it < Clock.System.now() + Settings.schedulingHorizon }
+                            .forEach { date ->
+                                submitScheduleMessage(
+                                    workloadName,
+                                    date,
+                                    taskCallFactory
+                                )
+                            }
+                        delay(Settings.scheduleDelayDuration)
+                    }
                 }
             }
         }
@@ -124,30 +143,28 @@ class TaskManager(
             )
         )
 
-        if (!scheduler.recordScheduling(workloadName, scheduleAt)) {
-            logger.atTrace {
-                message = "Scheduling $workloadName. Record already exists."
-                payload = mapOf(
-                    "callId" to (call.message.headers["call-id"] ?: "unknown"),
-                    "attemptNum" to (call.message.headers["attempt-num"] ?: "unknown"),
-                    "taskName" to workloadName,
-                    "scheduleAt" to scheduleAt
-                )
+        val logCtx = mapOf(
+            "callId" to (call.message.headers["call-id"] ?: "unknown"),
+            "attemptNum" to (call.message.headers["attempt-num"] ?: "unknown"),
+            "taskName" to workloadName,
+            "scheduleAt" to scheduleAt.toString()
+        )
+        withLogCtx(logCtx) {
+            if (!scheduler.recordScheduling(workloadName, scheduleAt)) {
+                logger.atTrace {
+                    message = "Scheduling $workloadName. Record already exists."
+                    payload = logCtx
+                }
+                return
             }
-            return
-        }
 
-        logger.atDebug {
-            message = "Scheduling $workloadName. Success."
-            payload = mapOf(
-                "callId" to (call.message.headers["call-id"] ?: "unknown"),
-                "attemptNum" to (call.message.headers["attempt-num"] ?: "unknown"),
-                "taskName" to workloadName,
-                "scheduleAt" to scheduleAt
-            )
-        }
+            logger.atDebug {
+                message = "Scheduling $workloadName. Success."
+                payload = logCtx
+            }
 
-        enqueueTaskCall(call)
+            enqueueTaskCall(call)
+        }
     }
 
     fun startWorkers(vararg tasks: Task<*>) {
@@ -165,7 +182,7 @@ class TaskManager(
 
     override fun close() {
         broker.close()
-        schedulersScope.cancel()
+        scope.cancel()
     }
     init {
         setDefaultInstance(this)

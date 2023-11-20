@@ -87,7 +87,7 @@ class AzureServiceBusBroker(
                     delayMs = allHeaders[delayHeaderName]?.toString()?.toLong() ?: 0,
                 )
 
-                runBlocking {
+                runBlocking(MDCContext()) {
                     handler(msg) {
                         receiver.complete(message).subscribe()
                     }

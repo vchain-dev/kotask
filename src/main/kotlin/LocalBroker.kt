@@ -1,5 +1,6 @@
 package com.zamna.kotask
 
+import MDCContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlin.concurrent.thread
@@ -16,7 +17,7 @@ class LocalBroker: IMessageBroker {
     override fun submitMessage(queueName: QueueName, message: Message) {
         val q = queues.getOrPut(queueName) { LocalQueue() }
 
-        GlobalScope.launch {
+        GlobalScope.launch(MDCContext()) {
             delay(message.delayMs)
             q.channel.send(message)
         }
@@ -25,7 +26,7 @@ class LocalBroker: IMessageBroker {
     override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
         val q = queues.getOrPut(queueName) { LocalQueue() }
 
-        val job = GlobalScope.launch {
+        val job = GlobalScope.launch(MDCContext()) {
             for (msg in q.channel) {
                 handler(msg) {
                     // do nothing

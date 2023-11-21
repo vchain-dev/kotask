@@ -2,11 +2,14 @@ package com.zamna.kotask
 
 import ExpDelayQuantizer
 import IDelayQuantizer
+import MDCContext
 import com.rabbitmq.client.*
 import com.rabbitmq.client.impl.MicrometerMetricsCollector
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.*
+import loggingScope
+import withLogCtx
 import kotlin.time.Duration.Companion.minutes
 
 const val HEADERS_PREFIX = "kot-"
@@ -17,7 +20,7 @@ class RabbitMQBroker(
     uri: String = "amqp://guest:guest@localhost",
     metricsPrefix: String? = null,
     val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer(),
-    schedulersScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    schedulersScope: CoroutineScope? = null,
 ) : IMessageBroker {
     private val createdQueues = mutableSetOf<QueueName>()
     private val createdDelayQueues = mutableSetOf<Long>()
@@ -33,9 +36,10 @@ class RabbitMQBroker(
     val delayQuantizedHeaderName = "delay-quantized"
 
     private var logger = KotlinLogging.logger { }
+    private val scope = schedulersScope ?: loggingScope(logger)
 
     private var metricsCollector = MicrometerMetricsCollector(
-        LoggingMeterRegistry { s -> logger.atInfo { message = s } },
+        LoggingMeterRegistry { s -> logger.info { s } },
         metricsPrefix
     )
 
@@ -53,18 +57,17 @@ class RabbitMQBroker(
         // Create DELAYED exchange
         channel.exchangeDeclare(delayExchangeName, "headers", true)
 
-        schedulersScope.launch {
+        scope.launch(MDCContext()) {
             // Queue metrics
             while (true) {
                 for (d in queues.declarations) {
                     queues.declare(d)?.let {
-                        logger.atInfo {
-                            message = "Queue ${d.queueName} metrics"
-                            payload = mapOf(
-                                "queueName" to d.queueName,
-                                "consumerCount" to it.consumerCount,
-                                "messageCount" to it.messageCount
-                            )
+                        withLogCtx(
+                            "queueName" to d.queueName,
+                            "consumerCount" to it.consumerCount.toString(),
+                            "messageCount" to it.messageCount.toString(),
+                        ) {
+                            logger.info { "Queue ${d.queueName} metrics" }
                         }
                     }
                 }
@@ -76,14 +79,11 @@ class RabbitMQBroker(
 
     private fun assertQueue(queueName: QueueName) {
         if (queueName !in createdQueues) {
-            logger.atDebug {
-                message = "Declare queue $queueName"
-                payload = mapOf(
-                    "queueName" to queueName
-                )
+            withLogCtx("queueName" to queueName) {
+                logger.debug { "Declare queue $queueName" }
+                queues.declare(queueName, true, false, false, null)
+                createdQueues.add(queueName)
             }
-            queues.declare(queueName, true, false, false, null)
-            createdQueues.add(queueName)
         }
     }
 
@@ -100,20 +100,20 @@ class RabbitMQBroker(
             .headers(rabbitHeaders)
             .build()
 
-        val exchangeName = if (quantizedDelayMs > 0) {
-            logger.atDebug {
-                this.message = "Publish to delay exchange"
-                payload = mapOf(
-                    "callId" to (message.headers["call-id"] ?: "unknown"),
-                    "queueName" to queueName,
-                    "quantizedDelayMs" to quantizedDelayMs,
-                    "delay" to (props.headers[delayHeaderName] ?: "unknown")
-                )
-            }
-            delayExchangeName
-        } else defaultExchangeName
+        withLogCtx(
+            "callId" to (message.headers["call-id"] ?: "unknown"),
+            "queueName" to queueName,
+            "quantizedDelayMs" to quantizedDelayMs.toString(),
+            "delay" to (props.headers[delayHeaderName]?.toString() ?: "unknown")
+        ) {
+            logger.debug { "Publish to delay exchange" }
 
-        channel.basicPublish(exchangeName, queueName, props, message.body)
+            val exchangeName = if (quantizedDelayMs > 0) {
+                delayExchangeName
+            } else defaultExchangeName
+
+            channel.basicPublish(exchangeName, queueName, props, message.body)
+        }
     }
 
     override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
@@ -125,7 +125,7 @@ class RabbitMQBroker(
                 consumerTag: String,
                 envelope: Envelope,
                 props: AMQP.BasicProperties,
-                body: ByteArray
+                body: ByteArray,
             ) {
                 val headers = props.headers
                     .filterKeys { it.startsWith(HEADERS_PREFIX) }
@@ -138,7 +138,7 @@ class RabbitMQBroker(
                     delayMs = props.headers[delayHeaderName]?.toString()?.toLong() ?: 0,
                 )
 
-                runBlocking {
+                runBlocking(MDCContext()) {
                     handler(msg) {
                         cChannel.basicAck(envelope.deliveryTag, false)
                     }
@@ -155,25 +155,29 @@ class RabbitMQBroker(
 
     fun quantizeDelayAndAssertDelayedQueue(delayMs: Long): Long {
         val delayQuantized = delayQuantizer.quantize(delayMs)
-
-        if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
-            val queueName = "$delayQueueNamePrefix$delayQuantized"
-            logger.atDebug {
-                message = "Create delayed queue"
-                payload = mapOf(
-                    "queueName" to queueName,
-                    "delayQuantized" to delayQuantized,
+        val queueName = "$delayQueueNamePrefix$delayQuantized"
+        withLogCtx(
+            "queueName" to queueName,
+            "delayQuantized" to delayQuantized.toString(),
+        ) {
+            if (delayQuantized > 0 && delayQuantized !in createdDelayQueues) {
+                logger.debug { "Create delayed queue" }
+                queues.declare(
+                    queueName,
+                    durable = true,
+                    exclusive = false,
+                    autoDelete = false,
+                    arguments = mapOf(
+                        "x-message-ttl" to delayQuantized,
+                        "x-dead-letter-exchange" to defaultExchangeName
+                    )
                 )
+                channel.queueBind(
+                    queueName, delayExchangeName, queueName,
+                    mapOf(delayQuantizedHeaderName to delayQuantized.toString(), "x-match" to "all")
+                )
+                createdDelayQueues.add(delayQuantized)
             }
-            queues.declare(
-                queueName, true, false, false,
-                mapOf("x-message-ttl" to delayQuantized, "x-dead-letter-exchange" to defaultExchangeName)
-            )
-            channel.queueBind(
-                queueName, delayExchangeName, queueName,
-                mapOf(delayQuantizedHeaderName to delayQuantized.toString(), "x-match" to "all")
-            )
-            createdDelayQueues.add(delayQuantized)
         }
         return delayQuantized
     }
@@ -187,14 +191,14 @@ class RabbitMQConsumer(val consumer: DefaultConsumer) : IConsumer {
 
 
 class RabbitMQQueues(
-    var channel: Channel
+    var channel: Channel,
 ) {
     data class RabbitMQQueueDeclaration(
         val queueName: String,
         val durable: Boolean,
         val exclusive: Boolean,
         val autoDelete: Boolean,
-        val arguments: Map<String, Any>?
+        val arguments: Map<String, Any>?,
     )
 
     val declarations = mutableSetOf<RabbitMQQueueDeclaration>()
@@ -204,9 +208,10 @@ class RabbitMQQueues(
         durable: Boolean,
         exclusive: Boolean,
         autoDelete: Boolean,
-        arguments: Map<String, Any>?
+        arguments: Map<String, Any>?,
     ) {
-        val declaration = RabbitMQQueueDeclaration(queueName, durable, exclusive, autoDelete, arguments)
+        val declaration =
+            RabbitMQQueueDeclaration(queueName, durable, exclusive, autoDelete, arguments)
         declarations.add(declaration)
         this.declare(declaration)
     }

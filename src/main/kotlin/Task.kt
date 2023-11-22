@@ -32,7 +32,7 @@ class TaskRegistry internal constructor() {
 
 
     companion object {
-        fun get(taskName: String): Task<*>  = instance.tasks[taskName]!!
+        fun get(taskName: String): Task<*> = instance.tasks[taskName]!!
 
         fun register(task: Task<*>) {
             instance.tasks.getOrPut(task.name) { task }

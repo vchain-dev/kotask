@@ -26,7 +26,7 @@ class TaskManager(
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
-    private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
+    internal val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
     private val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
     private var logger = KotlinLogging.logger {  }
     private val scope = schedulersScope ?: loggingScope(logger)
@@ -65,7 +65,7 @@ class TaskManager(
         withLogCtx("taskName" to task.name) {
             logger.info { "Starting worker for task ${task.name}" }
             checkTaskUniq(task)
-            tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
+            tasksConsumers.getOrPut(task.name) { mutableListOf() }.add(
                 broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
                     task.execute(message.body.decodeToString(), messageToParams(message), this)
                     ack()
@@ -162,10 +162,6 @@ class TaskManager(
     }
 
     fun startWorkers(vararg tasks: Task<*>) {
-        if (broker is LocalBroker) {
-            logger.warn { "LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers" }
-            return
-        }
         tasks.forEach { startWorker(it) }
 
         // System worker

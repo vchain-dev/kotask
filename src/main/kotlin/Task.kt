@@ -17,13 +17,13 @@ class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: Task
 object NoInput
 
 object TaskEvents {
-    val MESSAGE_RECEIVED: String = "MESSAGE_RECEIVED"
-    val MESSAGE_SENT: String = "MESSAGE_SENT"
-    val MESSAGE_SUBMIT_RETRY: String = "MESSAGE_SUBMIT_RETRY"
-    val MESSAGE_FAIL: String = "MESSAGE_FAIL"
-    val MESSAGE_FAIL_RETRY: String = "MESSAGE_FAIL_RETRY"
-    val MESSAGE_FAIL_NO_RETRY: String = "MESSAGE_FAIL_NO_RETRY"
-    val MESSAGE_COMPLETE: String = "MESSAGE_COMPLETE"
+    const val MESSAGE_RECEIVED: String = "MESSAGE_RECEIVED"
+    const val MESSAGE_SENT: String = "MESSAGE_SENT"
+    const val MESSAGE_SUBMIT_RETRY: String = "MESSAGE_SUBMIT_RETRY"
+    const val MESSAGE_FAIL: String = "MESSAGE_FAIL"
+    const val MESSAGE_FAIL_RETRY: String = "MESSAGE_FAIL_RETRY"
+    const val MESSAGE_FAIL_NO_RETRY: String = "MESSAGE_FAIL_NO_RETRY"
+    const val MESSAGE_COMPLETE: String = "MESSAGE_COMPLETE"
 }
 
 class TaskRegistry internal constructor() {

@@ -1,5 +1,6 @@
 package com.zamna.kotask
 
+import com.zamna.kotask.execptions.TaskAlreadyRegistered
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -34,7 +35,13 @@ class TaskRegistry internal constructor() {
     companion object {
         fun get(taskName: String): Task<*> = instance.tasks[taskName]!!
 
+        fun clean() { instance.tasks.clear() }
+
         fun register(task: Task<*>) {
+            if (task.name in instance.tasks) {
+                throw TaskAlreadyRegistered("")
+            }
+
             instance.tasks.getOrPut(task.name) { task }
         }
 

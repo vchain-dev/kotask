@@ -1,6 +1,7 @@
 import com.zamna.kotask.IRepeatingSchedulePolicy
 import com.zamna.kotask.Task
 import com.zamna.kotask.TaskManager
+import com.zamna.kotask.TaskRegistry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.kotest.common.ExperimentalKotest
 import io.kotest.core.spec.style.funSpec
@@ -14,6 +15,7 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalKotest::class)
 fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
+    TaskRegistry.clean()
     Settings.scheduleDelayDuration = 1.seconds
 
     class RepeatingScheduleTestTaskPolicy(

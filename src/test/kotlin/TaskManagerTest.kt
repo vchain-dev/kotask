@@ -205,7 +205,7 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
         }
     }
 
-    test("TaskManager should have 4 consumers registered") {
+    test("TaskManager should have 5 consumers registered") {
         taskManager.tasksConsumers.keys shouldBe setOf(
             testTask1.name,
             testTask2.name,

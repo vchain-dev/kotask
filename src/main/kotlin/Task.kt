@@ -9,7 +9,7 @@ import withLogCtx
 import java.util.*
 import kotlin.time.Duration
 
-class TaskCallFactory<T : Any>(val task: Task<T>, val input: T, val manager: TaskManager) {
+class TaskCallFactory<T: Any>(val task: Task<T>, val input: T, val manager: TaskManager) {
     operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
 }
 
@@ -26,12 +26,33 @@ object TaskEvents {
     val MESSAGE_COMPLETE: String = "MESSAGE_COMPLETE"
 }
 
-class Task<T : Any> @PublishedApi internal constructor(
+class TaskRegistry internal constructor() {
+
+    private val tasks = mutableMapOf<String, Task<*>>()
+
+
+    companion object {
+        fun get(taskName: String): Task<*>  = instance.tasks[taskName]!!
+
+        fun register(task: Task<*>) {
+            instance.tasks.getOrPut(task.name) { task }
+        }
+
+        val instance = TaskRegistry()
+    }
+
+}
+
+class Task<T: Any> @PublishedApi internal constructor(
     private val inputSerializer: KSerializer<T>,
     val name: String,
     val retry: IRetryPolicy? = null,
     val handler: TaskHandler<T>,
 ) {
+    init {
+        TaskRegistry.register(this)
+    }
+
     private var logger = KotlinLogging.logger { }
 
     companion object {

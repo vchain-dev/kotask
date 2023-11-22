@@ -10,6 +10,7 @@ import io.kotest.extensions.testcontainers.TestContainerExtension
 import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
 import io.kotest.framework.concurrency.until
+import io.kotest.matchers.collections.shouldBeIn
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -106,6 +107,16 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
         taskManager.startWorkers(testTask1, testTask2, testFailingTask, testFailingOnceTask)
     }
 
+    test("TaskManager should have 4 consumers registered") {
+        taskManager.tasksConsumers.keys shouldBe setOf(
+            testTask1.name,
+            testTask2.name,
+            testFailingOnceTask.name,
+            testFailingTask.name,
+            cleanScheduleWorker.name,
+        )
+    }
+
     // Tests
     test("test basic queues, execution, delays") {
 
@@ -128,9 +139,6 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
                 it.isExecuted() shouldBe true
             }
         }
-
-
-
     }
 
     test("TaskCall isExecuted updates after call") {

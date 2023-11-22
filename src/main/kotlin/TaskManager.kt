@@ -25,9 +25,10 @@ class TaskManager(
     schedulersScope: CoroutineScope? = null,
 ): AutoCloseable {
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
-    // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
-    private val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()
-    private val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
+
+    internal val tasksConsumers: MutableMap<String, IConsumer> = mutableMapOf()
+    internal val tasksSchedulers: MutableMap<String, Job> = mutableMapOf()
+
     private var logger = KotlinLogging.logger {  }
     private val scope = schedulersScope ?: loggingScope(logger)
 
@@ -35,7 +36,6 @@ class TaskManager(
     fun knownWorkerNames() = knownTasks.keys.toSet()
 
     fun enqueueTaskCall(task: Task<*>, inputStr: String, params: CallParams) {
-        checkTaskUniq(task)
         val call = createTaskCall(task, inputStr, params)
         enqueueTaskCall(call)
     }
@@ -48,29 +48,28 @@ class TaskManager(
         ) {
             logger.debug { "Enqueue task call" }
             broker.submitMessage(queueNameByTaskName(call.taskName), call.message)
-
-            if (broker is LocalBroker && !tasksConsumers.containsKey(call.taskName)) {
-                // Start worker for local broker
-                startWorker(knownTasks[call.taskName]!!)
-            }
+            if (broker is LocalBroker) startWorker(TaskRegistry.get(call.taskName))
         }
     }
 
     fun createTaskCall(task: Task<*>, inputStr: String, params: CallParams): TaskCall {
-        checkTaskUniq(task)
         return TaskCall(task.name, paramsToMessage(inputStr, params))
     }
 
     private fun startWorker(task: Task<*>) {
         withLogCtx("taskName" to task.name) {
             logger.info { "Starting worker for task ${task.name}" }
-            checkTaskUniq(task)
-            tasksConsumers.getOrDefault(task.name, mutableListOf()).add(
-                broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: () -> Any ->
+
+            if (task.name in tasksSchedulers) {
+                logger.warn { "Consumer already registered. Skipping." }
+            }
+
+            tasksConsumers.getOrPut(task.name) {
+                broker.startConsumer(queueNameByTaskName(task.name)) { message: Message, ack: Ack ->
                     task.execute(message.body.decodeToString(), messageToParams(message), this)
                     ack()
                 }
-            )
+            }
         }
     }
 
@@ -162,10 +161,6 @@ class TaskManager(
     }
 
     fun startWorkers(vararg tasks: Task<*>) {
-        if (broker is LocalBroker) {
-            logger.warn { "LocalBroker is used. Workers are started automatically. Use startWorkers only for remote brokers" }
-            return
-        }
         tasks.forEach { startWorker(it) }
 
         // System worker
@@ -261,4 +256,5 @@ interface IConsumer {
     fun stop()
 }
 
-typealias ConsumerHandler = suspend (message: Message, ack: ()->Any) -> Unit
+typealias Ack = () -> Any
+typealias ConsumerHandler = suspend (message: Message, ack: Ack) -> Unit

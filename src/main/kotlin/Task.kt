@@ -9,7 +9,6 @@ import kotlinx.serialization.serializer
 import withLogCtx
 import java.util.*
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
 
 class TaskCallFactory<T : Any>(val task: Task<T>, val input: T, val manager: TaskManager) {
     operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
@@ -97,34 +96,12 @@ class Task<T : Any> @PublishedApi internal constructor(
         withLogCtx(logCtx) {
             val ctx = ExecutionContext(params, manager, logCtx = logCtx)
 
-            logger.debug { "Execute task $name with input $inputStr" }
-
-            // TODO: what to do with deserialization errors?
-            val input = try {
-                Json.decodeFromString(inputSerializer, inputStr)
-            } catch (e: SerializationException) {
-                // invalid json. Log and finish task, so it would be removed from the queue
-                logger.error { "Task got bad json" }
-                return
-            } catch (e: IllegalArgumentException) {
-                if (getRetryPolicy(manager).shouldRetry(params)) {
-                    logger.error { "Can't convert input json to task argument. Will retry in 1 hour." }
-                    val newParams = getRetryPolicy(manager)
-                        .getNextRetryCallParams(params.copy(delay = 1.hours))
-
-                    manager.enqueueTaskCall(this, inputStr, newParams)
-                } else {
-                    logger.error { "Can't convert input json to task argument. Abandon task." }
-                }
-                return
-            }
-
             withLogCtx("action" to TaskEvents.MESSAGE_RECEIVED) {
                 logger.info { "Start task with name=$name callId=${params.callId} with $inputStr" }
             }
 
             try {
-                handler(ctx, input)
+                handler(ctx, Json.decodeFromString(inputSerializer, inputStr))
 
                 withLogCtx("action" to TaskEvents.MESSAGE_COMPLETE) {
                     logger.info { "Complete task $name with callId=${params.callId} with $inputStr" }
@@ -142,6 +119,10 @@ class Task<T : Any> @PublishedApi internal constructor(
             } catch (e: FailNoRetry) {
                 withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
                     logger.info { "Received FailNoRetry from task $name with callId=${params.callId} with $inputStr" }
+                }
+            } catch (e: SerializationException) {
+                withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
+                    logger.error { "Task got bad json" }
                 }
             } catch (e: Throwable) {
                 withLogCtx("action" to TaskEvents.MESSAGE_FAIL) {

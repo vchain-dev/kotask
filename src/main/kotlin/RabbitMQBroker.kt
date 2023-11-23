@@ -29,7 +29,6 @@ class RabbitMQBroker(
     private var queues: RabbitMQQueues
     var connection: Connection
     var channel: Channel
-    val ackLock = Mutex()
 
     val delayExchangeName = "kotask-delayed-exchange"
     val defaultExchangeName = ""
@@ -115,16 +114,18 @@ class RabbitMQBroker(
                 delayExchangeName
             } else defaultExchangeName
 
-            channel.basicPublish(exchangeName, queueName, props, message.body)
+            synchronized(channel) {
+                channel.basicPublish(exchangeName, queueName, props, message.body)
+            }
         }
     }
 
     override fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer {
         assertQueue(queueName)
-        val lockOwner = this
 
         val cChannel = connection.createChannel()
         val c = object : DefaultConsumer(cChannel) {
+
             override fun handleDelivery(
                 consumerTag: String,
                 envelope: Envelope,
@@ -144,10 +145,8 @@ class RabbitMQBroker(
 
                 runBlocking(MDCContext()) {
                     handler(msg) {
-                        runBlocking {
-                            ackLock.withLock(lockOwner) {
-                                cChannel.basicAck(envelope.deliveryTag, false)
-                            }
+                        synchronized(cChannel) {
+                            cChannel.basicAck(envelope.deliveryTag, false)
                         }
                     }
                 }

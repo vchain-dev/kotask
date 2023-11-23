@@ -42,10 +42,6 @@ class TaskManagerWithRabbitTest: FunSpec({
     val rabbitUri = "amqp://${rabbitUser}:${rabbitPass}@${rabbit.host}:${rabbit.firstMappedPort}"
     val taskManager = TaskManager(RabbitMQBroker(uri = rabbitUri))
 
-    afterSpec {
-        taskManager.close()
-    }
-
     include("Rabbit Broker", taskManagerTest(taskManager))
 })
 

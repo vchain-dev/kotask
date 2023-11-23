@@ -5,7 +5,7 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlin.time.Duration.Companion.hours
 
-class ScheduleGenerationWithoutMockedClockTrackerTest: DescribeSpec({
+class ScheduleGenerationWithoutMockedClockTrackerTest : DescribeSpec({
 
     describe("Two Schedules") {
         val everyMinute1 = Cron("* * * * *")

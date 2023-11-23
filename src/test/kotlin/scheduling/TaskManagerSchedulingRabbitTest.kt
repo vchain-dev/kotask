@@ -8,7 +8,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.containers.wait.strategy.Wait
 import plugins.scheduler.pg.PostgresqlScheduleTracker
 
-class TaskManagerSchedulingRabbitTest: FunSpec({
+class TaskManagerSchedulingRabbitTest : FunSpec({
     val rabbitUser = "guest"
     val rabbitPass = "guest"
     val rabbit = install(TestContainerExtension("rabbitmq:management")) {
@@ -22,17 +22,17 @@ class TaskManagerSchedulingRabbitTest: FunSpec({
         .withDatabaseName("somedatabasename")
         .withUsername("postgres")
         .withPassword("postgres")
-        .also{ it.start() }
+        .also { it.start() }
 
     val rabbitUri = "amqp://${rabbitUser}:${rabbitPass}@${rabbit.host}:${rabbit.firstMappedPort}"
-    val taskManager = TaskManager(
-        RabbitMQBroker(uri = rabbitUri),
-        scheduler = PostgresqlScheduleTracker(
-            jdbcUrl = pg.jdbcUrl,
-            user = pg.username,
-            password = pg.password,
+    include("Rabbit.", taskManagerSchedulingTest {
+        TaskManager(
+            RabbitMQBroker(uri = rabbitUri),
+            scheduler = PostgresqlScheduleTracker(
+                jdbcUrl = pg.jdbcUrl,
+                user = pg.username,
+                password = pg.password,
+            )
         )
-    )
-
-    include("Rabbit.", taskManagerSchedulingTest(taskManager))
+    })
 })

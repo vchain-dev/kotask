@@ -5,26 +5,23 @@ import org.testcontainers.containers.PostgreSQLContainer
 import plugins.scheduler.pg.PostgresqlScheduleTracker
 
 
-class TaskManagerSchedulingPgTest: FunSpec({
+class TaskManagerSchedulingPgTest : FunSpec({
     val pg = PostgreSQLContainer("postgres:14.1")
         .withDatabaseName("somedatabasename")
         .withUsername("postgres")
         .withPassword("postgres")
-        .also{ it.start() }
+        .also { it.start() }
 
-    val taskManager = TaskManager(
-        LocalBroker(),
-        scheduler = PostgresqlScheduleTracker(
-            jdbcUrl = pg.jdbcUrl,
-            user = pg.username,
-            password = pg.password,
+
+    include("Postgresql.", taskManagerSchedulingTest {
+        TaskManager(
+            LocalBroker(),
+            scheduler = PostgresqlScheduleTracker(
+                jdbcUrl = pg.jdbcUrl,
+                user = pg.username,
+                password = pg.password,
+            )
         )
-    )
-
-    afterSpec {
-        taskManager.close()
-    }
-
-    include("Postgresql.", taskManagerSchedulingTest(taskManager))
+    })
 })
 

@@ -41,6 +41,7 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
             val schedule = RepeatingScheduleTestTaskPolicy()
             val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
+            taskManager.startWorkers(schedulingTask1)
             eventually(6000) {
                 it.isExecuted() shouldBe true
                 it.executionsCount() shouldBe 10
@@ -53,6 +54,7 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
             val schedule = RepeatingScheduleTestTaskPolicy(timeout = 1000)
             val uniqueWorkflowName = "task1_${UUID.randomUUID()}"
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
+            taskManager.startWorkers(schedulingTask1)
             eventually(4900) {
                 it.isExecuted() shouldBe true
                 it.executionsCount() shouldBe 5
@@ -66,6 +68,7 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
         val schedule = RepeatingScheduleTestTaskPolicy(timeout = 200)
         taskManager.startScheduler("task1_${UUID.randomUUID()}", schedule, schedulingTask1.prepareInput(input1))
         taskManager.startScheduler("task2_${UUID.randomUUID()}", schedule, schedulingTask2.prepareInput(input2))
+        taskManager.startWorkers(schedulingTask1, schedulingTask2)
 
         eventually(4000) {
             input1.isExecuted() shouldBe true
@@ -81,6 +84,7 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
             val schedule = RepeatingScheduleTestTaskPolicy(timeout = 1000)
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
             taskManager.startScheduler(uniqueWorkflowName, schedule, schedulingTask1.prepareInput(it))
+            taskManager.startWorkers(schedulingTask1, schedulingTask2)
 
             eventually(4900) {
                 it.isExecuted() shouldBe true
@@ -98,6 +102,7 @@ fun taskManagerSchedulingTest(taskManager: TaskManager) = funSpec {
                 schedule,
                 schedulingNoInput.prepareInput()
             )
+            taskManager.startWorkers(schedulingNoInput)
             eventually(500) {
                 taskManager.knownSchedulerNames().contains(TaskManager.cleanScheduleWorkloadName)
                 taskManager.knownWorkerNames().contains(cleanScheduleWorker.name)

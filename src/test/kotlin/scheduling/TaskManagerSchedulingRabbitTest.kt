@@ -4,7 +4,9 @@ import com.zamna.kotask.TaskManager
 import io.kotest.core.extensions.install
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.extensions.testcontainers.TestContainerExtension
+import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import plugins.scheduler.pg.PostgresqlScheduleTracker
 
 class TaskManagerSchedulingRabbitTest: FunSpec({
     val rabbitUser = "guest"
@@ -16,9 +18,21 @@ class TaskManagerSchedulingRabbitTest: FunSpec({
         withEnv("RABBITMQ_DEFAULT_PASS", rabbitPass)
         waitingFor(Wait.forLogMessage(".*Server startup complete;.*\\n", 1));
     }
+    val pg = PostgreSQLContainer("postgres:14.1")
+        .withDatabaseName("somedatabasename")
+        .withUsername("postgres")
+        .withPassword("postgres")
+        .also{ it.start() }
 
     val rabbitUri = "amqp://${rabbitUser}:${rabbitPass}@${rabbit.host}:${rabbit.firstMappedPort}"
-    val taskManager = TaskManager(RabbitMQBroker(uri = rabbitUri))
+    val taskManager = TaskManager(
+        RabbitMQBroker(uri = rabbitUri),
+        scheduler = PostgresqlScheduleTracker(
+            jdbcUrl = pg.jdbcUrl,
+            user = pg.username,
+            password = pg.password,
+        )
+    )
 
-    include("In memory.", taskManagerSchedulingTest(taskManager))
+    include("Rabbit.", taskManagerSchedulingTest(taskManager))
 })

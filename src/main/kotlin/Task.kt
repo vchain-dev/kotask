@@ -3,11 +3,13 @@ package com.zamna.kotask
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import withLogCtx
 import java.util.*
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 
 class TaskCallFactory<T : Any>(val task: Task<T>, val input: T, val manager: TaskManager) {
     operator fun invoke(params: CallParams): TaskCall = task.createTaskCall(input, params, manager)
@@ -98,7 +100,25 @@ class Task<T : Any> @PublishedApi internal constructor(
             logger.debug { "Execute task $name with input $inputStr" }
 
             // TODO: what to do with deserialization errors?
-            val input = Json.decodeFromString(inputSerializer, inputStr)
+            val input = try {
+                Json.decodeFromString(inputSerializer, inputStr)
+            } catch (e: SerializationException) {
+                // invalid json. Log and finish task, so it would be removed from the queue
+                logger.error { "Task got bad json" }
+                return
+            } catch (e: IllegalArgumentException) {
+                if (getRetryPolicy(manager).shouldRetry(params)) {
+                    logger.error { "Can't convert input json to task argument. Will retry in 1 hour." }
+                    val newParams = getRetryPolicy(manager)
+                        .getNextRetryCallParams(params.copy(delay = 1.hours))
+
+                    manager.enqueueTaskCall(this, inputStr, newParams)
+                } else {
+                    logger.error { "Can't convert input json to task argument. Abandon task." }
+                }
+                return
+            }
+
             withLogCtx("action" to TaskEvents.MESSAGE_RECEIVED) {
                 logger.info { "Start task with name=$name callId=${params.callId} with $inputStr" }
             }

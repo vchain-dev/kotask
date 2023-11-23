@@ -17,4 +17,5 @@ object Settings {
         .getOrDefault("KOTASK_SCHEDULING_HORIZON", "86400") // 1 day
         .toInt()
         .seconds
+
 }

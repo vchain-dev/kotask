@@ -8,6 +8,8 @@ import com.rabbitmq.client.impl.MicrometerMetricsCollector
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import loggingScope
 import withLogCtx
 import kotlin.time.Duration.Companion.minutes
@@ -112,7 +114,9 @@ class RabbitMQBroker(
                 delayExchangeName
             } else defaultExchangeName
 
-            channel.basicPublish(exchangeName, queueName, props, message.body)
+            synchronized(channel) {
+                channel.basicPublish(exchangeName, queueName, props, message.body)
+            }
         }
     }
 
@@ -121,6 +125,7 @@ class RabbitMQBroker(
 
         val cChannel = connection.createChannel()
         val c = object : DefaultConsumer(cChannel) {
+
             override fun handleDelivery(
                 consumerTag: String,
                 envelope: Envelope,
@@ -140,7 +145,9 @@ class RabbitMQBroker(
 
                 runBlocking(MDCContext()) {
                     handler(msg) {
-                        cChannel.basicAck(envelope.deliveryTag, false)
+                        synchronized(cChannel) {
+                            cChannel.basicAck(envelope.deliveryTag, false)
+                        }
                     }
                 }
             }

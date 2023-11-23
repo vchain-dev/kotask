@@ -3,6 +3,7 @@ package com.zamna.kotask
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import withLogCtx
@@ -95,16 +96,12 @@ class Task<T : Any> @PublishedApi internal constructor(
         withLogCtx(logCtx) {
             val ctx = ExecutionContext(params, manager, logCtx = logCtx)
 
-            logger.debug { "Execute task $name with input $inputStr" }
-
-            // TODO: what to do with deserialization errors?
-            val input = Json.decodeFromString(inputSerializer, inputStr)
             withLogCtx("action" to TaskEvents.MESSAGE_RECEIVED) {
                 logger.info { "Start task with name=$name callId=${params.callId} with $inputStr" }
             }
 
             try {
-                handler(ctx, input)
+                handler(ctx, Json.decodeFromString(inputSerializer, inputStr))
 
                 withLogCtx("action" to TaskEvents.MESSAGE_COMPLETE) {
                     logger.info { "Complete task $name with callId=${params.callId} with $inputStr" }
@@ -122,6 +119,10 @@ class Task<T : Any> @PublishedApi internal constructor(
             } catch (e: FailNoRetry) {
                 withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
                     logger.info { "Received FailNoRetry from task $name with callId=${params.callId} with $inputStr" }
+                }
+            } catch (e: SerializationException) {
+                withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
+                    logger.error { "Task got bad json" }
                 }
             } catch (e: Throwable) {
                 withLogCtx("action" to TaskEvents.MESSAGE_FAIL) {

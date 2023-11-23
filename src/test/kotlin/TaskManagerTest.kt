@@ -1,4 +1,5 @@
 import com.zamna.kotask.*
+import io.kotest.assertions.throwables.shouldNotThrow
 import io.kotest.common.ExperimentalKotest
 import io.kotest.core.annotation.EnabledCondition
 import io.kotest.core.annotation.EnabledIf
@@ -11,6 +12,7 @@ import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
 import io.kotest.framework.concurrency.until
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.testcontainers.containers.wait.strategy.Wait
@@ -39,10 +41,6 @@ class TaskManagerWithRabbitTest: FunSpec({
 
     val rabbitUri = "amqp://${rabbitUser}:${rabbitPass}@${rabbit.host}:${rabbit.firstMappedPort}"
     val taskManager = TaskManager(RabbitMQBroker(uri = rabbitUri))
-
-    afterSpec {
-        taskManager.close()
-    }
 
     include("Rabbit Broker", taskManagerTest(taskManager))
 })
@@ -193,6 +191,24 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
                 it.callId shouldBe callId
             }
         }
+    }
+
+    test("should not fail if started twice") {
+
+        shouldNotThrow<Exception> {
+            TaskManager.setDefaultInstance(taskManager)
+            taskManager.startWorkers(testTask1, testTask2, testFailingTask, testFailingOnceTask)
+        }
+    }
+
+    test("TaskManager should have 5 consumers registered") {
+        taskManager.tasksConsumers.keys shouldBe setOf(
+            testTask1.name,
+            testTask2.name,
+            testFailingOnceTask.name,
+            testFailingTask.name,
+            cleanScheduleWorker.name,
+        )
     }
 
 }

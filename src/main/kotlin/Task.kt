@@ -1,5 +1,6 @@
 package com.zamna.kotask
 
+import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
@@ -36,6 +37,7 @@ class Task<T : Any> @PublishedApi internal constructor(
     private var logger = KotlinLogging.logger { }
 
     companion object {
+
         inline fun <reified T : Any> create(
             name: String, retry: IRetryPolicy? = null, noinline handler: TaskHandler<T>,
         ) = Task(serializer(), name, retry, handler)
@@ -43,7 +45,6 @@ class Task<T : Any> @PublishedApi internal constructor(
         inline fun <reified T : Any> create(
             name: String, retry: IRetryPolicy? = null, noinline handler: OnlyInputTaskHandler<T>,
         ) = create(name, retry, handler.toTaskHandler())
-
         fun create(
             name: String, retry: IRetryPolicy? = null, handler: NoArgTaskHandler,
         ) = create(name, retry, handler.toTaskHandler())
@@ -77,6 +78,7 @@ class Task<T : Any> @PublishedApi internal constructor(
         return TaskCallFactory(this as Task<NoInput>, NoInput, manager)
     }
 
+
     fun createTaskCall(
         input: T,
         params: CallParams = CallParams(),
@@ -85,6 +87,8 @@ class Task<T : Any> @PublishedApi internal constructor(
         val inputStr = Json.encodeToString(inputSerializer, input)
         return manager.createTaskCall(this, inputStr, params)
     }
+
+//    }
 
     suspend fun execute(inputStr: String, params: CallParams, manager: TaskManager) {
         val logCtx = mapOf(
@@ -106,27 +110,27 @@ class Task<T : Any> @PublishedApi internal constructor(
                 withLogCtx("action" to TaskEvents.MESSAGE_COMPLETE) {
                     logger.info { "Complete task $name with callId=${params.callId} with $inputStr" }
                 }
-            } catch (e: RepeatTask) {
-                withLogCtx("action" to TaskEvents.MESSAGE_SUBMIT_RETRY) {
-                    logger.info { "Received RepeatTask from task $name with callId=${params.callId} with $inputStr" }
-                    manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
-                }
-            } catch (e: ForceRetry) {
-                withLogCtx("action" to TaskEvents.MESSAGE_SUBMIT_RETRY) {
-                    logger.info { "Received ForceRetry from task $name with callId=${params.callId} with $inputStr" }
-                    manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
-                }
-            } catch (e: FailNoRetry) {
-                withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
-                    logger.info { "Received FailNoRetry from task $name with callId=${params.callId} with $inputStr" }
-                }
-            } catch (e: SerializationException) {
-                withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
-                    logger.error { "Task got bad json" }
+            } catch (e: RetryControlException) {
+                when (e) {
+                    is RepeatTask -> withLogCtx("action" to TaskEvents.MESSAGE_SUBMIT_RETRY) {
+                        logger.info { "Received RepeatTask from task $name with callId=${params.callId} with $inputStr" }
+                        manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
+                    }
+                    is ForceRetry -> withLogCtx("action" to TaskEvents.MESSAGE_SUBMIT_RETRY) {
+                        logger.info { "Received ForceRetry from task $name with callId=${params.callId} with $inputStr" }
+                        manager.enqueueTaskCall(this, inputStr, e.getRetryCallParams(params))
+                    }
+                    is FailNoRetry -> withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
+                        logger.info { "Received FailNoRetry from task $name with callId=${params.callId} with $inputStr" }
+                    }
                 }
             } catch (e: Throwable) {
                 withLogCtx("action" to TaskEvents.MESSAGE_FAIL) {
                     logger.error(e) { "Task $name failed with callId=${params.callId} with $inputStr" }
+                }
+
+                for ((exception, handler) in manager.taskErrorHandlers) {
+                    if (e::class == exception) handler.invoke(logger, inputStr)
                 }
 
                 if (getRetryPolicy(manager).shouldRetry(params)) {
@@ -197,3 +201,7 @@ data class CallParams(
     fun nextAttempt() = copy(attemptNum = attemptNum + 1)
 }
 
+
+fun interface TaskErrorHandler {
+    fun invoke(logger: KLogger, inputMessage: String)
+}

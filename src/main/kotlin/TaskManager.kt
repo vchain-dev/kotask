@@ -7,7 +7,9 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
 import cleanScheduleWorker
+import io.github.oshai.kotlinlogging.KLogger
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.SerializationException
 import loggingScope
 import withLogCtx
 import kotlin.time.Duration
@@ -16,6 +18,14 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
+
+public val discardTaskOnSerialisationProblem: Pair<Class<*>, TaskErrorHandler> = SerializationException::class.java to
+    TaskErrorHandler { logger, inputStr ->
+        withLogCtx("action" to TaskEvents.MESSAGE_FAIL_NO_RETRY) {
+            logger.error { "Can't deserialize json as task input. Json: $inputStr" }
+        }
+    }
+
 // TODO(baitcode): TaskManager is getting huge
 class TaskManager(
     private val broker: IMessageBroker,
@@ -23,7 +33,11 @@ class TaskManager(
     private val queueNamePrefix: String = "kotask-",
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
     schedulersScope: CoroutineScope? = null,
+    val taskErrorHandlers: List<Pair<Class<*>, TaskErrorHandler>> = listOf(
+        discardTaskOnSerialisationProblem, // deafault
+    )
 ): AutoCloseable {
+
     private val knownTasks: MutableMap<String, Task<*>> = mutableMapOf()
     // TODO(baitcode): Why use list? When we always have single consumer. Is it for concurrency.
     internal val tasksConsumers: MutableMap<String, MutableList<IConsumer>> = mutableMapOf()

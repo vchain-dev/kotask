@@ -130,7 +130,10 @@ class Task<T : Any> @PublishedApi internal constructor(
                 }
 
                 for ((exception, handler) in manager.taskErrorHandlers) {
-                    if (e::class == exception) handler.invoke(logger, inputStr)
+                    if (e::class.java == exception) {
+                        handler.invoke(logger, inputStr)
+                        return
+                    }
                 }
 
                 if (getRetryPolicy(manager).shouldRetry(params)) {

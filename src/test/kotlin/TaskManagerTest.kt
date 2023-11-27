@@ -13,6 +13,9 @@ import io.kotest.framework.concurrency.eventually
 import io.kotest.framework.concurrency.until
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import org.testcontainers.containers.wait.strategy.Wait
@@ -212,3 +215,37 @@ fun taskManagerTest(taskManager: TaskManager) = funSpec {
     }
 
 }
+
+
+
+
+class TaskManagerErrorHandling: FunSpec({
+    class UnhadledError : Exception()
+
+    val errorHandler = mockk<TaskErrorHandler>()
+    every { errorHandler.invoke(any(), any()) } returns Unit
+
+    val tm = TaskManager(
+        LocalBroker(),
+        taskErrorHandlers = listOf(
+            UnhadledError::class.java to errorHandler
+        )
+    )
+
+    val testTask1 =
+        Task.create("failing-task-${randomSuffix()}",) { ctx, input: TaskTrackExecutionWithContextCountInput ->
+            throw UnhadledError()
+        }
+
+    test("test error") {
+        tm.startWorkers(testTask1)
+
+        TaskTrackExecutionWithContextCountInput.new().let {
+            testTask1.callLater(it)
+            eventually(1000) {
+                verify(exactly = 1) { errorHandler.invoke(any(), any()) }
+            }
+
+        }
+    }
+})

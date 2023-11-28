@@ -8,8 +8,6 @@ import com.rabbitmq.client.impl.MicrometerMetricsCollector
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.logging.LoggingMeterRegistry
 import kotlinx.coroutines.*
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import loggingScope
 import withLogCtx
 import kotlin.time.Duration.Companion.minutes
@@ -26,7 +24,7 @@ class RabbitMQBroker(
 ) : IMessageBroker {
     private val createdQueues = mutableSetOf<QueueName>()
     private val createdDelayQueues = mutableSetOf<Long>()
-    private var queues: RabbitMQQueues
+    private var queues: QueueDefinitions
     var connection: Connection
     var channel: Channel
 
@@ -54,7 +52,7 @@ class RabbitMQBroker(
         factory.isAutomaticRecoveryEnabled = true
         connection = factory.newConnection()
         channel = connection.createChannel()
-        queues = RabbitMQQueues(channel)
+        queues = QueueDefinitions(channel)
 
         // Create DELAYED exchange
         channel.exchangeDeclare(delayExchangeName, "headers", true)
@@ -197,10 +195,10 @@ class RabbitMQConsumer(val consumer: DefaultConsumer) : IConsumer {
 }
 
 
-class RabbitMQQueues(
+private class QueueDefinitions(
     var channel: Channel,
 ) {
-    data class RabbitMQQueueDeclaration(
+    data class QueueDeclaration(
         val queueName: String,
         val durable: Boolean,
         val exclusive: Boolean,
@@ -208,7 +206,7 @@ class RabbitMQQueues(
         val arguments: Map<String, Any>?,
     )
 
-    val declarations = mutableSetOf<RabbitMQQueueDeclaration>()
+    val declarations = mutableSetOf<QueueDeclaration>()
 
     fun declare(
         queueName: String,
@@ -218,12 +216,12 @@ class RabbitMQQueues(
         arguments: Map<String, Any>?,
     ) {
         val declaration =
-            RabbitMQQueueDeclaration(queueName, durable, exclusive, autoDelete, arguments)
+            QueueDeclaration(queueName, durable, exclusive, autoDelete, arguments)
         declarations.add(declaration)
         this.declare(declaration)
     }
 
-    fun declare(d: RabbitMQQueueDeclaration): AMQP.Queue.DeclareOk? {
+    fun declare(d: QueueDeclaration): AMQP.Queue.DeclareOk? {
         return channel.queueDeclare(d.queueName, d.durable, d.exclusive, d.autoDelete, d.arguments)
     }
 }

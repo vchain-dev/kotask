@@ -53,3 +53,12 @@ Currently, supported brokers are:
 - RabbitMQ (GCP, AWS)
 - Azure Service Bus
 
+### Migrations
+
+The correct way to migrate the workload is:
+1) Create new task with new workload 
+2) Maintain 2 tasks until messages for the old one are depleted
+3) Delete old task
+
+Important do not change task input as Json deserializer will break causing the queue to block.
+To mitigate the mentioned problem we introduced default behavior to automatically drop tasks on SerialisationError  

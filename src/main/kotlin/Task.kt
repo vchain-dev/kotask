@@ -130,7 +130,7 @@ class Task<T : Any> @PublishedApi internal constructor(
                 }
 
                 for ((exception, handler) in manager.taskErrorHandlers) {
-                    if (e::class.java == exception) {
+                    if (exception.isAssignableFrom(e::class.java)) {
                         handler.invoke(logger, inputStr)
                         return
                     }

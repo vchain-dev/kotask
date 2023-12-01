@@ -1,5 +1,6 @@
 package plugins.scheduler.pg
 
+import Settings
 import com.zamna.kotask.IScheduleTracker
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
@@ -13,7 +14,7 @@ import org.jetbrains.exposed.sql.javatime.timestamp
 import org.jetbrains.exposed.sql.transactions.transaction
 import kotlin.time.Duration.Companion.hours
 
-object Schedule : Table() {
+object Schedule : Table(name=Settings.scheduleTableName) {
     val workloadName: Column<String> = varchar("workload_id", 512)
     val scheduledAt = timestamp("scheduled_at")
     val createdAt = timestamp("createdAt").defaultExpression(CurrentTimestamp())

@@ -9,7 +9,7 @@ object Settings {
         .seconds
 
     var scheduleTableName: String = System.getenv()
-        .getOrDefault("SCHEDULE_TABLE_NAME", "schedule") // 1 hour
+        .getOrDefault("KOTASK_SCHEDULE_TABLE_NAME", "schedule") // 1 hour
 
     var scheduleTTL: Duration = System.getenv()
         .getOrDefault("KOTASK_SCHEDULE_CLEANUP_SECONDS", "3600") // 1 hour

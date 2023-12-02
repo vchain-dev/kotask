@@ -19,7 +19,7 @@ object Schedule : Table(name=Settings.scheduleTableName) {
     val scheduledAt = timestamp("scheduled_at")
     val createdAt = timestamp("createdAt").defaultExpression(CurrentTimestamp())
 
-    override val primaryKey = PrimaryKey(workloadName, scheduledAt, name = "PK")
+    override val primaryKey = PrimaryKey(workloadName, scheduledAt)
 }
 
 class PostgresqlScheduleTracker(

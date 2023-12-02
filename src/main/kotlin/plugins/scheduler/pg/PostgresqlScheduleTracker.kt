@@ -8,6 +8,7 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.toJavaInstant
 import org.jetbrains.exposed.sql.*
+import org.jetbrains.exposed.sql.SchemaUtils.withDataBaseLock
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.lessEq
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
 import org.jetbrains.exposed.sql.javatime.timestamp
@@ -31,9 +32,11 @@ class PostgresqlScheduleTracker(
 
     init {
         transaction(db.connection) {
-            SchemaUtils.createMissingTablesAndColumns(Schedule)
-            Schedule.deleteWhere {
-                this.scheduledAt.lessEq((Clock.System.now() - 2.hours).toJavaInstant())
+            withDataBaseLock {
+                SchemaUtils.createMissingTablesAndColumns(Schedule)
+                Schedule.deleteWhere {
+                    this.scheduledAt.lessEq((Clock.System.now() - 2.hours).toJavaInstant())
+                }
             }
         }
     }

@@ -67,7 +67,7 @@ class RabbitMQBroker(
                             "consumerCount" to it.consumerCount.toString(),
                             "messageCount" to it.messageCount.toString(),
                         ) {
-                            logger.info { "Queue ${d.queueName} metrics" }
+                            logger.debug { "Queue ${d.queueName} metrics" }
                         }
                     }
                 }

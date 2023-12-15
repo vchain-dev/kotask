@@ -77,7 +77,7 @@ dependencies {
     implementation("com.zaxxer:HikariCP:5.0.1")
     implementation("org.postgresql:postgresql:42.6.0")
 
-    implementation("com.azure:azure-messaging-servicebus:7.14.2")
+    implementation("com.azure:azure-messaging-servicebus:7.14.7")
 
     // add rabbit mq
     testImplementation("io.kotest:kotest-runner-junit5:5.5.5")

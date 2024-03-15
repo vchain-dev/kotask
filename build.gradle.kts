@@ -18,11 +18,18 @@ val kotestVersion = "5.5.4"
 val exposedVersion: String = "0.41.1"
 
 
-val jvmTargetVersion = JavaLanguageVersion.of(18)
+val jvmTargetVersion = JavaLanguageVersion.of(20)
 
 java {
     toolchain {
         languageVersion.set(jvmTargetVersion)
+
+
+
+
+
+
+
     }
 }
 

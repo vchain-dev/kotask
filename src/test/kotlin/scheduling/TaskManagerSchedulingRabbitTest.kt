@@ -1,5 +1,4 @@
-import com.zamna.kotask.LocalBroker
-import com.zamna.kotask.RabbitMQBroker
+import brokers.RabbitMQBroker
 import com.zamna.kotask.TaskManager
 import io.kotest.core.extensions.install
 import io.kotest.core.spec.style.FunSpec

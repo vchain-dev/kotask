@@ -1,5 +1,6 @@
 package example
 
+import brokers.RabbitMQBroker
 import com.zamna.kotask.*
 
 val scheduledTask1 = Task.create("scheduled-task") { input: String ->

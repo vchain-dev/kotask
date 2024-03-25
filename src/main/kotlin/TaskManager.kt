@@ -34,7 +34,7 @@ class TaskManager(
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
     schedulersScope: CoroutineScope? = null,
     val taskErrorHandlers: List<Pair<Class<*>, TaskErrorHandler>> = listOf(
-        discardTaskOnSerialisationProblem, // deafault
+        discardTaskOnSerialisationProblem, // default
     )
 ): AutoCloseable {
 

@@ -23,13 +23,6 @@ val jvmTargetVersion = JavaLanguageVersion.of(20)
 java {
     toolchain {
         languageVersion.set(jvmTargetVersion)
-
-
-
-
-
-
-
     }
 }
 

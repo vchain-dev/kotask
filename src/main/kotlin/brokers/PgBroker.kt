@@ -46,7 +46,7 @@ class PgBroker(
     val dbWrapper: DbWrapper,
     val scope: CoroutineScope = GlobalScope,
 
-    val emptyMessageDelayMs: Duration = 5000.milliseconds,
+    val emptyMessageDelay: Duration = 5000.milliseconds,
     val messageReservationTimeoutMs: Duration = 5.minutes,
 ): IMessageBroker {
     companion object {
@@ -120,7 +120,7 @@ class PgBroker(
                 }
 
                 if (messages.isEmpty()) {
-                    delay(emptyMessageDelayMs)
+                    delay(emptyMessageDelay)
                     continue
                 }
 

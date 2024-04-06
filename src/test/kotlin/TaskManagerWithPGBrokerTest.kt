@@ -1,28 +1,20 @@
 import brokers.KotaskMessages
 import brokers.PgBroker
-import com.zamna.kotask.CallParams
 import com.zamna.kotask.RetryPolicy
 import com.zamna.kotask.Task
 import com.zamna.kotask.TaskManager
-import io.kotest.assertions.throwables.shouldNotThrow
 import io.kotest.common.ExperimentalKotest
-import io.kotest.core.factory.TestFactory
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
 import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
-import io.kotest.framework.concurrency.until
-import io.kotest.matchers.comparables.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
-import kotlinx.coroutines.launch
 import org.jetbrains.exposed.sql.deleteAll
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.testcontainers.containers.PostgreSQLContainer
 import plugins.scheduler.pg.connectToDatabase
-import java.lang.Thread.sleep
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
@@ -40,7 +32,7 @@ class TaskManagerWithPGBrokerTest : FunSpec({
             TaskManager(
                 PgBroker(
                     connectToDatabase(pg.jdbcUrl, pg.username, pg.password),
-                    emptyMessageDelayMs = 0.seconds,
+                    emptyMessageDelay = 50.milliseconds,
                 )
             )
         )
@@ -51,11 +43,13 @@ class TaskManagerWithPGBrokerTest : FunSpec({
             TaskManager(
                 PgBroker(
                     connectToDatabase(pg.jdbcUrl, pg.username, pg.password),
-                    emptyMessageDelayMs = 0.seconds,
+                    emptyMessageDelay = 50.milliseconds,
                 )
             )
         )
     )
+
+
 })
 
 @OptIn(ExperimentalKotest::class)

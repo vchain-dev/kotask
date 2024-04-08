@@ -18,7 +18,6 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
-const val HEADERS_PREFIX = "kot-pg-"
 
 object KotaskMessages : Table(name=Settings.messagesTableName) {
     val id = uuid("id").autoGenerate()

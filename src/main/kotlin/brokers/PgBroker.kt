@@ -131,7 +131,7 @@ class PgBroker(
                     continue
                 }
 
-                messages.forEach { message ->
+                messages.filterNotNull().forEach { message ->
                     scope.launch {
                         handler(message) {
                             transaction {

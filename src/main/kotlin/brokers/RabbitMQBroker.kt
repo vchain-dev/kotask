@@ -14,19 +14,15 @@ import withLogCtx
 import kotlin.time.Duration.Companion.minutes
 
 
+const val HEADERS_PREFIX = "kot-"
 
 // todo: need a better way to process headers
-
 class RabbitMQBroker(
     uri: String = "amqp://guest:guest@localhost",
     metricsPrefix: String? = null,
     val delayQuantizer: IDelayQuantizer = ExpDelayQuantizer(),
     schedulersScope: CoroutineScope? = null,
 ) : IMessageBroker {
-    companion object {
-        const val HEADERS_PREFIX = "kot-"
-    }
-
     private val createdQueues = mutableSetOf<QueueName>()
     private val createdDelayQueues = mutableSetOf<Long>()
     private var queues: QueueDefinitions

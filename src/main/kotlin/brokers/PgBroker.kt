@@ -6,6 +6,7 @@ import kotlinx.coroutines.*
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.SerializationException
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.javatime.CurrentTimestamp
@@ -98,21 +99,28 @@ class PgBroker(
                         }
                         .limit(100) // settings
                         .forUpdate()
-                        .map {
-                            val headers = Json.decodeFromString<HashMap<String, String>>(it[KotaskMessages.headers].decodeToString())
-                            Message(
-                                body = it[KotaskMessages.body],
-                                headers = headers,
-                                delayMs = it[KotaskMessages.delayMs],
-                            )
+                        .map { message ->
+                            try {
+                                val headers =
+                                    Json.decodeFromString<HashMap<String, String>>(message[KotaskMessages.headers].decodeToString())
+
+                                Message(
+                                    body = message[KotaskMessages.body],
+                                    headers = headers,
+                                    delayMs = message[KotaskMessages.delayMs],
+                                )
+                            } catch (e: SerializationException) {
+                                KotaskMessages.deleteWhere { callId eq message[callId]}
+                                null
+                            }
                         }
 
-                    val callIds = messages.map { it.getCallId() }
+                    val callIds = messages.filterNotNull().map { it.getCallId() }
 
                     KotaskMessages.update({
                         KotaskMessages.callId inList callIds
                     }) {
-                        it[startedAt] = Instant.now()
+                        it[startedAt] = CurrentTimestamp()
                     }
 
                     messages
@@ -124,10 +132,12 @@ class PgBroker(
                 }
 
                 messages.forEach { message ->
-                    handler(message) {
-                        transaction {
-                            KotaskMessages.deleteWhere {
-                                id eq message.getId()
+                    scope.launch {
+                        handler(message) {
+                            transaction {
+                                KotaskMessages.deleteWhere {
+                                    id eq message.getId()
+                                }
                             }
                         }
                     }

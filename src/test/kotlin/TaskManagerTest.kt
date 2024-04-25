@@ -2,12 +2,9 @@ import com.zamna.kotask.*
 import io.kotest.assertions.throwables.shouldNotThrow
 import io.kotest.common.ExperimentalKotest
 import io.kotest.core.annotation.EnabledCondition
-import io.kotest.core.annotation.EnabledIf
-import io.kotest.core.extensions.install
 import io.kotest.core.spec.Spec
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.core.spec.style.funSpec
-import io.kotest.extensions.testcontainers.TestContainerExtension
 import io.kotest.framework.concurrency.continually
 import io.kotest.framework.concurrency.eventually
 import io.kotest.framework.concurrency.until
@@ -19,7 +16,6 @@ import io.mockk.verify
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
-import org.testcontainers.containers.wait.strategy.Wait
 import java.lang.Thread.sleep
 import java.util.*
 import kotlin.reflect.KClass
@@ -28,45 +24,11 @@ import kotlin.time.DurationUnit
 import kotlin.time.toDuration
 
 
-class TaskManagerWithLocalBrokerTest: FunSpec({
-    include("Local Broker", taskManagerTest(TaskManager(LocalBroker())))
-})
-
-class TaskManagerWithRabbitTest: FunSpec({
-    val rabbitUser = "guest"
-    val rabbitPass = "guest"
-    val rabbit = install(TestContainerExtension("rabbitmq:management")) {
-        startupAttempts = 1
-        withExposedPorts(5672)
-        withEnv("RABBITMQ_DEFAULT_USER", rabbitUser)
-        withEnv("RABBITMQ_DEFAULT_PASS", rabbitPass)
-        waitingFor(Wait.forLogMessage(".*Server startup complete;.*\\n", 1));
-    }
-
-    val rabbitUri = "amqp://${rabbitUser}:${rabbitPass}@${rabbit.host}:${rabbit.firstMappedPort}"
-    val taskManager = TaskManager(RabbitMQBroker(uri = rabbitUri))
-
-    include("Rabbit Broker", taskManagerTest(taskManager))
-})
-
 fun env(name: String): String? = System.getenv().get(name)
 
 class AzureConfigured : EnabledCondition {
     override fun enabled(kclass: KClass<out Spec>): Boolean = env("AZURE_URI") != null
 }
-
-@EnabledIf(AzureConfigured::class)
-class TaskManagerWithAzureTest: FunSpec({
-    val taskManager = TaskManager(
-        AzureServiceBusBroker(env("AZURE_URI")!!)
-    )
-
-    afterSpec {
-        taskManager.close()
-    }
-
-    include("Azure Broker", taskManagerTest(taskManager))
-})
 
 fun randomSuffix(): String = UUID.randomUUID().toString().substring(0, 10)
 

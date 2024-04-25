@@ -1,5 +1,6 @@
 package example
 
+import brokers.RabbitMQBroker
 import com.zamna.kotask.*
 import kotlinx.serialization.Serializable
 import kotlin.time.Duration.Companion.seconds

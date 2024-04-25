@@ -2,13 +2,13 @@ package com.zamna.kotask
 
 import MDCContext
 import Settings
+import brokers.IMessageBroker
+import cleanScheduleWorker
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.serialization.Serializable
-import cleanScheduleWorker
-import io.github.oshai.kotlinlogging.KLogger
-import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.serialization.SerializationException
 import loggingScope
 import withLogCtx
@@ -34,7 +34,7 @@ class TaskManager(
     val defaultRetryPolicy: IRetryPolicy = RetryPolicy(4.seconds, 20, expBackoff = true, maxDelay = 1.hours),
     schedulersScope: CoroutineScope? = null,
     val taskErrorHandlers: List<Pair<Class<*>, TaskErrorHandler>> = listOf(
-        discardTaskOnSerialisationProblem, // deafault
+        discardTaskOnSerialisationProblem, // default
     )
 ): AutoCloseable {
 
@@ -235,11 +235,6 @@ class TaskManager(
 }
 
 typealias QueueName = String
-
-interface IMessageBroker: AutoCloseable {
-    fun submitMessage(queueName: QueueName, message: Message)
-    fun startConsumer(queueName: QueueName, handler: ConsumerHandler): IConsumer
-}
 
 @Serializable
 data class Message(
